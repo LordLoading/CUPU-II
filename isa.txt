@@ -7,6 +7,8 @@
 1 |0 |0 |1 |0 |0 |1|targ |src1 |func3| jr
 1 |0 |1 |0 |0 |0 |0|func3|src1 |src2 | cond
 1 |0 |1 |0 |0 |0 |1|func3|src1 |func3| cond imm
+1 |0 |1 |0 |0 |1 |0|func3|src1 |src2 | condf
+1 |0 |1 |0 |0 |1 |1|func3|src1 |func3| condf imm
 1 |0 |1 |1 |0 |0 |0|targ |src1 |func3| stack ops
 1 |0 |1 |1 |0 |0 |1|targ |src1 |0|0|0| stack ld
 1 |0 |1 |1 |0 |1 |1|targ |src1 |0|0|0| stack cpy
@@ -14,3 +16,65 @@
 1 |1 |0 |0 |0 |0 |0|0|0|0|0|0|0|0|0|1| syshangup
 1 |1 |1 |0 |func6        |src1 |func3| csr ld
 1 |1 |1 |1 |func3  |targ |func6      | csr cpy
+
+data types (funct 3 in ALU imm, sa, la, j, jr, cond imm, condf imm, stack ops)
+000 1 byte
+001 2 bytes
+010 4 bytes
+100 1 byte unsigned
+101 2 bytes unsigned
+
+ALU
+00000 add
+00001 oflw 
+00010 sub
+00011 uflw
+00100 mul
+00101 mulh
+00110 mulhu
+00111 div
+01000 divu
+01001 rem
+01010 remu
+01011 fadd
+01100 fsub
+01101 fmul
+01110 fdiv
+01111 itof
+10000 ftoi
+10001 pass
+10010 or
+10011 and
+10100 xor
+10101 not
+
+conditions (same for float)
+000 a == b
+001 a <  b
+010 a >  b
+011 a != b
+101 a <= b
+110 a >= b
+
+stack ops
+000 push reg
+001 pop
+010 push fp
+011 pop fp
+
+stack regs
+000 bp
+001 sp
+010 fp
+
+info
+the opcode of an instruction is 2 bytes long. any immediate value
+is stored in a number of bytes directly following the opcode.
+the ammount of immediate bytes can change depending on the data type
+(1, 2 or 4 bytes)
+
+there are 8 general purpose registers. all of them behave normally,
+except register 0, which is hardwired to a 0x0 constant.
+
+the conditional instructions dont branch directly. if a conditiona
+is false, the next instruction will be skipped.
