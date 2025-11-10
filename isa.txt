@@ -47,6 +47,9 @@ ALU
 10011 and
 10100 xor
 10101 not
+10110 sll
+10111 srl
+11000 sra
 
 conditions (same for float)
 000 a == b
