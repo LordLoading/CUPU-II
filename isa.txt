@@ -23,6 +23,8 @@
 1 |0 |1 |0 |1 |func5     |src1 |func3| csr ld
 1 |0 |1 |1 |0 |fnc2|targ |func6      | csr cpy
 
+1 |0 |1 |1 |1 |0 |0|0|0|0|src1 |src2 |  
+
 data types (funct 3 in ALU imm, sa, la, j, jr, cond imm, condf imm, stack ops)
 000 1 byte
 001 2 bytes
