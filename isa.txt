@@ -9,9 +9,11 @@
 1 |1 |0 |0 |1 |1 |0|targ |src1 |func3| jr
 
 1 |0 |0 |1 |0 |0 |0|func3|src1 |src2 | cond
+1 |1 |0 |1 |0 |0 |0|func3|src1 |func3| cond imm
+1 |0 |0 |1 |0 |0 |1|func3|src1 |src2 | cond
 1 |1 |0 |1 |0 |0 |1|func3|src1 |func3| cond imm
-1 |0 |0 |1 |0 |1 |0|func3|src1 |src2 | condf
-1 |1 |0 |1 |0 |1 |1|func3|src1 |func3| condf imm
+1 |0 |0 |1 |0 |1 |0|func3|src1 |src2 | cond float
+1 |1 |0 |1 |0 |1 |0|func3|src1 |func3| cond float imm
 
 1 |0 |0 |1 |1 |0 |0|targ |src1 |func3| stack ops
 1 |0 |0 |1 |1 |0 |1|targ |src1 |0|0|0| stack ld
