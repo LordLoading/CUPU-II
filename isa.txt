@@ -2,16 +2,16 @@
 0 |0 |func5        |targ |src1 |src2 | ALU
 0 |1 |func5        |targ |src1 |func3| ALU imm
 
-1 |0 |0 |0 |0 |0 |0|targ |src1 |func3| la
-1 |0 |0 |0 |0 |0 |1|func3|src1 |src2 | sa
+1 |1 |0 |0 |0 |0 |0|targ |src1 |func3| la
+1 |1 |0 |0 |0 |0 |1|func3|src1 |src2 | sa
 
 1 |1 |0 |0 |1 |0 |0|targ |src1 |func3| j
 1 |1 |0 |0 |1 |1 |0|targ |src1 |func3| jr
 
 1 |0 |0 |1 |0 |0 |0|func3|src1 |src2 | cond
 1 |1 |0 |1 |0 |0 |0|func3|src1 |func3| cond imm
-1 |0 |0 |1 |0 |0 |1|func3|src1 |src2 | cond
-1 |1 |0 |1 |0 |0 |1|func3|src1 |func3| cond imm
+1 |0 |0 |1 |0 |0 |1|func3|src1 |src2 | cond u
+1 |1 |0 |1 |0 |0 |1|func3|src1 |func3| cond u imm
 1 |0 |0 |1 |0 |1 |0|func3|src1 |src2 | cond float
 1 |1 |0 |1 |0 |1 |0|func3|src1 |func3| cond float imm
 
@@ -25,7 +25,7 @@
 1 |0 |1 |0 |1 |func5     |src1 |func3| csr ld
 1 |0 |1 |1 |0 |fnc2|targ |func6      | csr cpy
 
-1 |0 |1 |1 |1 |0 |0|targ |src1 |src2 | 
+1 |0 |1 |1 |1 |0 |0|targ |src1 |src2 | i forgor
 
 data types (funct 3 in ALU imm, sa, la, j, jr, cond imm, condf imm, stack ops)
 000 1 byte
@@ -46,20 +46,24 @@ ALU
 01000 divu
 01001 rem
 01010 remu
-01011 fadd
-01100 fsub
-01101 fmul
-01110 fdiv
-01111 itof
-10000 ftoi
-10001 pass
-10010 or
-10011 and
-10100 xor
-10101 not
-10110 sll
-10111 srl
-11000 sra
+01011 inc
+01100 incoflw 
+01101 dec
+01110 decuflw
+01111 fadd
+10000 fsub
+10001 fmul
+10010 fdiv
+10011 itof
+10100 ftoi
+10101 pass
+10110 or
+10111 and
+11000 xor
+11001 not
+11010 sll
+11011 srl
+11100 sra
 
 conditions (same for float)
 000 a == b
