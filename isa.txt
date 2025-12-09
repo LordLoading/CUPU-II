@@ -6,7 +6,7 @@
 1 |1 |0 |0 |0 |0 |1|func3|src1 |src2 | sa
 
 1 |1 |0 |0 |1 |0 |0|targ |src1 |func3| j
-1 |1 |0 |0 |1 |1 |0|targ |src1 |func3| jr
+1 |1 |0 |0 |1 |0 |1|targ |src1 |func3| jr
 
 1 |0 |0 |1 |0 |0 |0|func3|src1 |src2 | cond
 1 |1 |0 |1 |0 |0 |0|func3|src1 |func3| cond imm
