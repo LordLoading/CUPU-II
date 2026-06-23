@@ -1,97 +1,24 @@
-15|14|13|12|11|10|9|8|7|6|5|4|3|2|1|0|
-0 |0 |func5        |targ |src1 |src2 | ALU
-0 |1 |func5        |targ |src1 |func3| ALU imm
+   █████████  █████  █████ ███████████  █████  █████            █████ █████
+  ███░░░░░███░░███  ░░███ ░░███░░░░░███░░███  ░░███            ░░███ ░░███ 
+ ███     ░░░  ░███   ░███  ░███    ░███ ░███   ░███             ░███  ░███ 
+░███          ░███   ░███  ░██████████  ░███   ░███  ██████████ ░███  ░███ 
+░███          ░███   ░███  ░███░░░░░░   ░███   ░███ ░░░░░░░░░░  ░███  ░███ 
+░░███     ███ ░███   ░███  ░███         ░███   ░███             ░███  ░███ 
+ ░░█████████  ░░████████   █████        ░░████████              █████ █████
+  ░░░░░░░░░    ░░░░░░░░   ░░░░░          ░░░░░░░░              ░░░░░ ░░░░░ 
+                         
+                            Stollentroll
 
-1 |1 |0 |0 |0 |0 |0|targ |src1 |func3| la
-1 |1 |0 |0 |0 |0 |1|func3|src1 |src2 | sa
+formats:
+   ┌───────────┬──────┬──────┬─────┬─────┬──────┐
+R: │31         │30-26 │25-21 │20-16│15-11│10-0  │
+   ├───────────┼──────┼──────┼─────┼─────┼──────┤
+   │conditional│opcode│target│a reg│b reg│func10│
+   └───────────┴──────┴──────┴─────┴─────┴──────┘
+   ┌───────────┬──────┬──────┬─────┬────────────┐
+I: │31         │30-26 │25-21 │20-16│15-0        │
+   ├───────────┼──────┼──────┼─────┼────────────┤
+   │conditional│opcode│target│a reg│immediate   │
+   └───────────┴──────┴──────┴─────┴────────────┘
 
-1 |1 |0 |0 |1 |0 |0|targ |src1 |func3| j
-1 |1 |0 |0 |1 |0 |1|targ |src1 |func3| jr
 
-1 |0 |0 |1 |0 |0 |0|func3|src1 |src2 | cond
-1 |1 |0 |1 |0 |0 |0|func3|src1 |func3| cond imm
-1 |0 |0 |1 |0 |0 |1|func3|src1 |src2 | cond u
-1 |1 |0 |1 |0 |0 |1|func3|src1 |func3| cond u imm
-1 |0 |0 |1 |0 |1 |0|func3|src1 |src2 | cond float
-1 |1 |0 |1 |0 |1 |0|func3|src1 |func3| cond float imm
-
-1 |0 |0 |1 |1 |0 |0|targ |src1 |func3| stack ops
-1 |0 |0 |1 |1 |0 |1|targ |src1 |0|0|0| stack ld
-1 |0 |0 |1 |1 |1 |1|targ |src1 |0|0|0| stack cpy
-
-1 |0 |1 |0 |0 |0 |0|0|0|0|0|0|0|0|0|0| syscall
-1 |0 |1 |0 |0 |0 |0|0|0|0|0|0|0|0|0|1| syshangup
-
-1 |0 |1 |0 |1 |func5     |src1 |func3| csr ld
-1 |0 |1 |1 |0 |fnc2|targ |func6      | csr cpy
-
-1 |0 |1 |1 |1 |0 |0|targ |src1 |src2 | i forgor
-
-data types (funct 3 in ALU imm, sa, la, j, jr, cond imm, condf imm, stack ops)
-000 1 byte
-001 2 bytes
-010 4 bytes
-100 1 byte unsigned
-101 2 bytes unsigned
-
-ALU
-00000 add
-00001 oflw 
-00010 sub
-00011 uflw
-00100 mul
-00101 mulh
-00110 mulhu
-00111 div
-01000 divu
-01001 rem
-01010 remu
-01011 inc
-01100 incoflw 
-01101 dec
-01110 decuflw
-01111 fadd
-10000 fsub
-10001 fmul
-10010 fdiv
-10011 itof
-10100 ftoi
-10101 pass
-10110 or
-10111 and
-11000 xor
-11001 not
-11010 sll
-11011 srl
-11100 sra
-
-conditions (same for float)
-000 a == b
-001 a <  b
-010 a >  b
-011 a != b
-101 a <= b
-110 a >= b
-
-stack ops
-000 push reg
-001 pop
-010 push fp
-011 pop fp
-
-stack regs
-000 bp
-001 sp
-010 fp
-
-info
-the opcode of an instruction is 2 bytes long. any immediate value
-is stored in a number of bytes directly following the opcode.
-the ammount of immediate bytes can change depending on the data type
-(1, 2 or 4 bytes)
-
-there are 8 general purpose registers. all of them behave normally,
-except register 0, which is hardwired to a 0x0 constant.
-
-the conditional instructions dont branch directly. if a conditiona
-is false, the next instruction will be skipped.
