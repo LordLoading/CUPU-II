@@ -1,45 +1,45 @@
 const std = @import("std");
 
-pub fn buildR(cond: bool, opc: u6, t: u5, a: u5, b: u5, func10: u10) u32 {
-    var bin = 0x0;
-    bin |= cond << 31;
-    bin |= opc << 25;
-    bin |= t << 20;
-    bin |= a << 15;
-    bin |= b << 10;
-    bin |= func10 << 0;
+pub fn buildR(cond: bool, opc: u5, t: u5, a: u5, b: u5, func10: u11) u32 {
+    var bin: u32 = 0x0;
+    if (cond) bin |= 0x80000000;
+    bin |= @as(u32, opc) << 25;
+    bin |= @as(u32, t) << 20;
+    bin |= @as(u32, a) << 15;
+    bin |= @as(u32, b) << 10;
+    bin |= @as(u32, func10) << 0;
     return bin;
 }
 
-pub fn buildI(cond: bool, opc: u6, target: u5, a: u5, immediate: u16) u32 {
-    var bin = 0x0;
-    bin |= cond << 31;
-    bin |= opc << 25;
-    bin |= target << 20;
-    bin |= a << 15;
-    bin |= immediate << 0;
+pub fn buildI(cond: bool, opc: u5, target: u5, a: u5, immediate: u16) u32 {
+    var bin: u32 = 0x0;
+    if (cond) bin |= 0x80000000;
+    bin |= @as(u32, opc) << 25;
+    bin |= @as(u32, target) << 20;
+    bin |= @as(u32, a) << 15;
+    bin |= @as(u32, immediate) << 0;
     return bin;
 }
 
 pub const Op = struct {
-    name: []u8,
+    name: []const u8,
     opType: u8,
-    fmt: []u8,
-    opc: u6,
-    func10: u10,
+    fmt: []const u8,
+    opc: u5,
+    func11: u11,
 
-    pub fn init(name: []const u8, opType: u8, fmt: []const u8, opc: u6, func10: u10) Op {
+    pub fn init(name: []const u8, opType: u8, fmt: []const u8, opc: u5, func11: u11) Op {
         return Op{
-            .name = @constCast(name),
+            .name = name,
             .opType = opType,
-            .fmt = @constCast(fmt),
+            .fmt = fmt,
             .opc = opc,
-            .func10 = func10,
+            .func11 = func11,
         };
     }
 };
 
-const opTable: []Op = [_]Op{
+const opTable: []const Op = &[_]Op{
     //alu
     Op.init("add",  'R', "tab", 0x00, 0x000),
     Op.init("sub",  'R', "tab", 0x00, 0x001),
@@ -94,7 +94,7 @@ const opTable: []Op = [_]Op{
     Op.init("jral", 'I', "tai", 0x11, 0x000),
 };
 
-pub fn getOpByName(name: []u8) ?Op {
+pub fn getOpByName(name: []const u8) ?Op {
     for (opTable) |op| {
         if (std.mem.eql(u8, op.name, name)) {
             return op;
