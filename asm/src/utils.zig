@@ -80,6 +80,8 @@ const opTable: []const Op = &[_]Op{
     Op.init("sw",   'R', "ab",  0x00, 0x033),
     Op.init("sh",   'R', "ab",  0x00, 0x034),
     Op.init("sb",   'R', "ab",  0x00, 0x035),
+    //idk
+    Op.init("hlt",  'R', "",  0x00, 0x040),
     //immediate alu
     Op.init("addi", 'I', "tai", 0x08, 0x000),
     Op.init("subi", 'I', "tai", 0x09, 0x000),
@@ -101,4 +103,13 @@ pub fn getOpByName(name: []const u8) ?Op {
         }
     }
     return null;
+}
+
+pub fn getFirstWord(str: []const u8) ?[]const u8 {
+    var firstWord = std.mem.trim(u8, str, " \t");
+    firstWord = std.mem.findAny(u8, firstWord, " \t") orelse {
+        return firstWord;
+    };
+    if (firstWord.len == 0) return null;
+    return firstWord;
 }

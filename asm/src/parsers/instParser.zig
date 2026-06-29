@@ -1,5 +1,5 @@
 const std = @import("std");
-const opUtils = @import("../opUtils.zig");
+const utils = @import("../opUtils.zig");
 const parseReg = @import("regParser.zig").parse;
 const valUtils = @import("valUtils.zig");
 
@@ -19,12 +19,11 @@ pub fn parse(instLine: []const u8) u32 {
         std.log.err("no space found in line: {s}", .{iLine});
         unreachable;
     }];
-
     if (inst[0] == '!') {
         isCond = true;
         inst = inst[1..];
     }
-    const op = opUtils.getOpByName(inst) orelse {
+    const op = utils.getOpByName(inst) orelse {
         std.log.err("op not found: {s}", .{inst});
         unreachable;
     };
@@ -65,9 +64,9 @@ pub fn parse(instLine: []const u8) u32 {
     std.debug.print("{b:0>16}\n", .{immediate});
 
     if (op.opType == 'R') {
-        return opUtils.buildR(isCond, opcode, t, a, b, func11);
+        return utils.buildR(isCond, opcode, t, a, b, func11);
     } else if (op.opType == 'I') {
-        return opUtils.buildI(isCond, opcode, t, a, immediate);
+        return utils.buildI(isCond, opcode, t, a, immediate);
     } else {
         std.log.err("unable to generate binary for op: {s}", .{inst});
         unreachable;
