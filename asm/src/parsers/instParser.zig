@@ -1,6 +1,7 @@
 const std = @import("std");
 const opUtils = @import("../opUtils.zig");
 const parseReg = @import("regParser.zig").parse;
+const valUtils = @import("valUtils.zig");
 
 pub fn parse(instLine: []const u8) u32 {
     var isCond = false;
@@ -48,12 +49,11 @@ pub fn parse(instLine: []const u8) u32 {
         } else if (op.fmt[i] == 'b') {
             b = parseReg(arg);
         } else if (op.fmt[i] == 'i') {
-            // immediate = opUtils.parseImm(arg);
-            immediate = std.fmt.parseInt(u16, arg, 10) catch 0;
+            immediate = valUtils.lower(valUtils.parse(arg));
         }
         i += 1;
 
-        if (i > op.fmt.len) break;
+        if (i >= op.fmt.len) break;
     }
 
     if (isCond) std.debug.print("1\n", .{}) else std.debug.print("0\n", .{});
