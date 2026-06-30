@@ -107,9 +107,10 @@ pub fn getOpByName(name: []const u8) ?Op {
 
 pub fn getFirstWord(str: []const u8) ?[]const u8 {
     var firstWord = std.mem.trim(u8, str, " \t");
-    firstWord = std.mem.findAny(u8, firstWord, " \t") orelse {
+    firstWord = firstWord[0..std.mem.findAny(u8, firstWord, " \t") orelse {
         return firstWord;
-    };
+    }];
+    firstWord = std.mem.trim(u8, firstWord, " \t");
     if (firstWord.len == 0) return null;
     return firstWord;
 }

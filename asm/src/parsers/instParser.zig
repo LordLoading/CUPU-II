@@ -25,14 +25,14 @@ pub fn parse(instLine: []const u8) u32 {
     }
     const op = utils.getOpByName(inst) orelse {
         std.log.err("op not found: {s}", .{inst});
-        unreachable;
+        std.process.exit(1);
     };
     opcode = op.opc;
     func11 = op.func11;
 
     iLine = iLine[std.mem.findAny(u8, iLine, " \t") orelse {
         std.log.err("no space found in line: {s}", .{iLine});
-        unreachable;
+        std.process.exit(1);
     } ..];
 
     iLine = std.mem.trim(u8, iLine, " \t");
