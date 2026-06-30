@@ -1,5 +1,5 @@
 const std = @import("std");
-const utils = @import("../opUtils.zig");
+const utils = @import("../utils.zig");
 const parseReg = @import("regParser.zig").parse;
 const valUtils = @import("valUtils.zig");
 
