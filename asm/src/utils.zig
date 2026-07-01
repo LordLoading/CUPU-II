@@ -114,3 +114,64 @@ pub fn getFirstWord(str: []const u8) ?[]const u8 {
     if (firstWord.len == 0) return null;
     return firstWord;
 }
+
+pub const fwr = struct {
+    firstWord: []const u8,
+    rest: []const u8,
+
+    pub fn init(str: []const u8) fwr {
+        str = std.mem.trim(u8, str, " \t");
+        const firstWord = getFirstWord(str);
+        const rest = str[firstWord.len..];
+        return fwr{
+            .firstWord = firstWord,
+            .rest = rest,
+        };
+    }
+};
+
+pub fn getFirstWordAndRest(str: []const u8) u8 {
+    var firstWord = std.mem.trim(u8, str, " \t");
+    firstWord = std.mem.findAny(u8, firstWord, " \t") orelse {
+        return firstWord;
+    };
+    if (firstWord.len == 0) return null;
+    return firstWord;
+}
+
+const DType = enum { section, symbol, data };
+
+const Directive = struct {
+    name: []const u8,
+    t: DType, 
+
+    pub fn init(name: []const u8, t: DType) Directive {
+        return Directive{
+            .name = name,
+            .t = t,
+        };
+    }
+};
+
+const directiveTable: []const Directive = &[_]Directive{
+    Directive.init(".text", DType.section),
+    Directive.init(".data", DType.section),
+    Directive.init(".bss", DType.section),
+    Directive.init(".rodata", DType.section),
+    Directive.init(".include", DType.symbol),
+    Directive.init(".global", DType.symbol),
+    Directive.init(".equ", DType.symbol),
+    Directive.init(".byte", DType.data),
+    Directive.init(".half", DType.data),
+    Directive.init(".word", DType.data),
+    Directive.init(".asciz", DType.data),
+};
+
+pub fn getDirectiveByName(name: []const u8) ?Directive {
+    for (directiveTable) |directive| {
+        if (std.mem.eql(u8, directive.name, name)) {
+            return directive;
+        }
+    }
+    return null;
+}
