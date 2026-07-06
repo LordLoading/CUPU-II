@@ -1,0 +1,4 @@
+(A) 2026-07-04 parse and process labels +asm
+(A) 2026-07-04 parse and process directives +asm
+(B) 2026-07-04 deal with relocations +asm
+(C) 2026-07-04 get command line arguments to determine input and output files +asm

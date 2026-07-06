@@ -3,7 +3,12 @@ const utils = @import("../utils.zig");
 const parseReg = @import("regParser.zig").parse;
 const valUtils = @import("valUtils.zig");
 
-pub fn parse(instLine: []const u8) u32 {
+pub const InstReloc = struct {
+    label: ?[]const u8,
+    bin: u32,
+};
+
+pub fn parse(instLine: []const u8) InstReloc {
     var isCond = false;
     var opcode: u5 = 0;
     var t: u5 = 0;
@@ -11,6 +16,7 @@ pub fn parse(instLine: []const u8) u32 {
     var b: u5 = 0;
     var func11: u11 = 0;
     var immediate: u16 = 0;
+    var label: ?[]const u8 = null;
 
     var iLine = std.mem.trim(u8, instLine, " \t");
     std.debug.print("iLine: {s}\n", .{iLine});
@@ -48,7 +54,9 @@ pub fn parse(instLine: []const u8) u32 {
         } else if (op.fmt[i] == 'b') {
             b = parseReg(arg);
         } else if (op.fmt[i] == 'i') {
-            immediate = valUtils.lower(valUtils.parse(arg));
+            const val = valUtils.parse(arg);
+            immediate = valUtils.lower(val.val);
+            label = val.label;
         }
         i += 1;
 
@@ -62,13 +70,14 @@ pub fn parse(instLine: []const u8) u32 {
     std.debug.print("{b:0>5}\n", .{b});
     std.debug.print("{b:0>11}\n", .{func11});
     std.debug.print("{b:0>16}\n", .{immediate});
+    std.debug.print("{any}\n", .{label});
 
     if (op.opType == 'R') {
-        return utils.buildR(isCond, opcode, t, a, b, func11);
+        return InstReloc{ .bin = utils.buildR(isCond, opcode, t, a, b, func11), .label = label };
     } else if (op.opType == 'I') {
-        return utils.buildI(isCond, opcode, t, a, immediate);
+        return InstReloc{ .bin = utils.buildI(isCond, opcode, t, a, immediate), .label = label };
     } else {
         std.log.err("unable to generate binary for op: {s}", .{inst});
-        unreachable;
+        std.process.exit(1);
     }
 }

@@ -41,58 +41,58 @@ pub const Op = struct {
 
 const opTable: []const Op = &[_]Op{
     //alu
-    Op.init("add",  'R', "tab", 0x00, 0x000),
-    Op.init("sub",  'R', "tab", 0x00, 0x001),
-    Op.init("mul",  'R', "tab", 0x00, 0x002),
-    Op.init("div",  'R', "tab", 0x00, 0x003),
-    Op.init("or",   'R', "tab", 0x00, 0x004),
-    Op.init("and",  'R', "tab", 0x00, 0x005),
-    Op.init("xor",  'R', "tab", 0x00, 0x006),
-    Op.init("not",  'R', "ta",  0x00, 0x007),
-    Op.init("shl",  'R', "tab", 0x00, 0x008),
-    Op.init("shr",  'R', "tab", 0x00, 0x009),
-    Op.init("rem",  'R', "tab", 0x00, 0x00A),
-    Op.init("mhi",  'R', "tab", 0x00, 0x00B),
+    Op.init("add", 'R', "tab", 0x00, 0x000),
+    Op.init("sub", 'R', "tab", 0x00, 0x001),
+    Op.init("mul", 'R', "tab", 0x00, 0x002),
+    Op.init("div", 'R', "tab", 0x00, 0x003),
+    Op.init("or", 'R', "tab", 0x00, 0x004),
+    Op.init("and", 'R', "tab", 0x00, 0x005),
+    Op.init("xor", 'R', "tab", 0x00, 0x006),
+    Op.init("not", 'R', "ta", 0x00, 0x007),
+    Op.init("shl", 'R', "tab", 0x00, 0x008),
+    Op.init("shr", 'R', "tab", 0x00, 0x009),
+    Op.init("rem", 'R', "tab", 0x00, 0x00A),
+    Op.init("mhi", 'R', "tab", 0x00, 0x00B),
     Op.init("ovrf", 'R', "tab", 0x00, 0x00C),
     Op.init("unrf", 'R', "tab", 0x00, 0x00D),
     //fpu
-    Op.init("itof", 'R', "ta",  0x00, 0x00E),
-    Op.init("ftoi", 'R', "ta",  0x00, 0x00F),
+    Op.init("itof", 'R', "ta", 0x00, 0x00E),
+    Op.init("ftoi", 'R', "ta", 0x00, 0x00F),
     Op.init("fadd", 'R', "tab", 0x00, 0x010),
     Op.init("fsub", 'R', "tab", 0x00, 0x011),
     Op.init("fmul", 'R', "tab", 0x00, 0x012),
     Op.init("fdiv", 'R', "tab", 0x00, 0x013),
-    Op.init("sqrt", 'R', "ta",  0x00, 0x014),
-    Op.init("sin",  'R', "ta",  0x00, 0x015),
-    Op.init("cos",  'R', "ta",  0x00, 0x016),
-    Op.init("tan",  'R', "ta",  0x00, 0x017),
+    Op.init("sqrt", 'R', "ta", 0x00, 0x014),
+    Op.init("sin", 'R', "ta", 0x00, 0x015),
+    Op.init("cos", 'R', "ta", 0x00, 0x016),
+    Op.init("tan", 'R', "ta", 0x00, 0x017),
     //comparisons
-    Op.init("eq",   'R', "ab",  0x00, 0x020),
-    Op.init("neq",  'R', "ab",  0x00, 0x021),
-    Op.init("gt",   'R', "ab",  0x00, 0x022),
-    Op.init("gte",  'R', "ab",  0x00, 0x023),
-    Op.init("lt",   'R', "ab",  0x00, 0x024),
-    Op.init("lte",  'R', "ab",  0x00, 0x025),
+    Op.init("eq", 'R', "ab", 0x00, 0x020),
+    Op.init("neq", 'R', "ab", 0x00, 0x021),
+    Op.init("gt", 'R', "ab", 0x00, 0x022),
+    Op.init("gte", 'R', "ab", 0x00, 0x023),
+    Op.init("lt", 'R', "ab", 0x00, 0x024),
+    Op.init("lte", 'R', "ab", 0x00, 0x025),
     //memory access
-    Op.init("lw",   'R', "ta",  0x00, 0x030),
-    Op.init("lh",   'R', "ta",  0x00, 0x031),
-    Op.init("lb",   'R', "ta",  0x00, 0x032),
-    Op.init("sw",   'R', "ab",  0x00, 0x033),
-    Op.init("sh",   'R', "ab",  0x00, 0x034),
-    Op.init("sb",   'R', "ab",  0x00, 0x035),
+    Op.init("lw", 'R', "ta", 0x00, 0x030),
+    Op.init("lh", 'R', "ta", 0x00, 0x031),
+    Op.init("lb", 'R', "ta", 0x00, 0x032),
+    Op.init("sw", 'R', "ab", 0x00, 0x033),
+    Op.init("sh", 'R', "ab", 0x00, 0x034),
+    Op.init("sb", 'R', "ab", 0x00, 0x035),
     //idk
-    Op.init("hlt",  'R', "",  0x00, 0x040),
+    Op.init("hlt", 'R', "", 0x00, 0x040),
     //immediate alu
     Op.init("addi", 'I', "tai", 0x08, 0x000),
     Op.init("subi", 'I', "tai", 0x09, 0x000),
     Op.init("muli", 'I', "tai", 0x0A, 0x000),
     Op.init("divi", 'I', "tai", 0x0B, 0x000),
-    Op.init("ori",  'I', "tai", 0x0C, 0x000),
+    Op.init("ori", 'I', "tai", 0x0C, 0x000),
     Op.init("andi", 'I', "tai", 0x0D, 0x000),
     Op.init("xori", 'I', "tai", 0x0E, 0x000),
-    Op.init("lui",  'I', "ti",  0x0F, 0x000),
+    Op.init("lui", 'I', "ti", 0x0F, 0x000),
     //jumps
-    Op.init("jal",  'I', "tai", 0x10, 0x000),
+    Op.init("jal", 'I', "tai", 0x10, 0x000),
     Op.init("jral", 'I', "tai", 0x11, 0x000),
 };
 
@@ -107,7 +107,7 @@ pub fn getOpByName(name: []const u8) ?Op {
 
 pub fn getFirstWord(str: []const u8) ?[]const u8 {
     var firstWord = std.mem.trim(u8, str, " \t");
-    firstWord = firstWord[0..std.mem.findAny(u8, firstWord, " \t") orelse {
+    firstWord = firstWord[0 .. std.mem.findAny(u8, firstWord, " \t") orelse {
         return firstWord;
     }];
     firstWord = std.mem.trim(u8, firstWord, " \t");
@@ -115,15 +115,15 @@ pub fn getFirstWord(str: []const u8) ?[]const u8 {
     return firstWord;
 }
 
-pub const fwr = struct {
+pub const FWR = struct {
     firstWord: []const u8,
     rest: []const u8,
 
-    pub fn init(str: []const u8) fwr {
+    pub fn init(str: []const u8) FWR {
         str = std.mem.trim(u8, str, " \t");
         const firstWord = getFirstWord(str);
         const rest = str[firstWord.len..];
-        return fwr{
+        return FWR{
             .firstWord = firstWord,
             .rest = rest,
         };
@@ -143,7 +143,7 @@ const DType = enum { section, symbol, data };
 
 const Directive = struct {
     name: []const u8,
-    t: DType, 
+    t: DType,
 
     pub fn init(name: []const u8, t: DType) Directive {
         return Directive{
@@ -159,6 +159,7 @@ const directiveTable: []const Directive = &[_]Directive{
     Directive.init(".bss", DType.section),
     Directive.init(".rodata", DType.section),
     Directive.init(".include", DType.symbol),
+    Directive.init(".segment", DType.symbol),
     Directive.init(".global", DType.symbol),
     Directive.init(".equ", DType.symbol),
     Directive.init(".byte", DType.data),
@@ -174,4 +175,9 @@ pub fn getDirectiveByName(name: []const u8) ?Directive {
         }
     }
     return null;
+}
+
+pub fn trimComment(str: []const u8) []const u8 {
+    if (std.mem.find(u8, str, "#")) |i| return str[0..i]
+    else return str;    
 }
