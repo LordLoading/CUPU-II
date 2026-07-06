@@ -41,18 +41,18 @@ pub fn parse(valStr: []const u8) ValOrLabel {
 }
 
 pub fn parseIntBase(T: type, valStr: []const u8, base: u8) u32 {
-    const trimmed = std.mem.trim(u8, valStr, " \t$");
+    const trimmed = std.mem.trim(u8, valStr, " \t");
     const val = std.fmt.parseInt(T, trimmed, base) catch |err| {
-        std.log.err("parse int error: {any}\ninput: {s}", .{ err, trimmed });
+        std.log.err("parse int error: {any}\ninput: {s}\ntype: {any}", .{ err, trimmed, T });
         std.process.abort();
     };
     return @as(u32, @bitCast(val));
 }
 
 pub fn parseFloat(valStr: []const u8) f32 {
-    const trimmed = std.mem.trim(u8, valStr, " \t$");
+    const trimmed = std.mem.trim(u8, valStr, " \t");
     return std.fmt.parseFloat(f32, trimmed) catch |err| {
-        std.log.err("parse int error: {any}\ninput: {s}", .{ err, trimmed });
+        std.log.err("parse float error: {any}\ninput: {s}", .{ err, trimmed });
         std.process.abort();
     };
 }

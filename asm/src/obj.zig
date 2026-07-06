@@ -29,7 +29,7 @@ pub const ObjStruct = struct {
     pub fn addInst(self: *ObjStruct, inst: u32) void {
         std.debug.print("inst: 0x{x}\n", .{inst});
         const bytes: []const u8 = std.mem.asBytes(&inst);
-        std.debug.print("bytes: {any}\n", .{bytes});
+        std.debug.print("bytes: {x}\n", .{bytes});
         for (bytes) |byte| {
             const str = std.fmt.hex(byte);
             self.text.appendSlice(main.alloc, &str) catch unreachable;

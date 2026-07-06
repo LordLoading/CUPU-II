@@ -20,15 +20,14 @@ pub fn main(init: std.process.Init) !void {
     var lines = std.mem.splitAny(u8, contents, "\n");
     while (lines.next()) |line| {
         var trimmed = utils.trimComment(line);
-        trimmed = std.mem.trim(u8, trimmed, " \t");
+        trimmed = std.mem.trim(u8, trimmed, " \t\n\r");
         if (trimmed.len == 0) continue;
-        std.debug.print("trimmed: {s}\n", .{trimmed});
         if (utils.getFirstWord(line)) |firstWord| {
             if (utils.getDirectiveByName(firstWord)) |directive| {
                 if (directive.t == .section) section = directive.name;
             }
 
-            if (utils.getOpByName(firstWord)) |op| {
+            if (utils.getOpByName(std.mem.trim(u8, firstWord, "!"))) |op| {
                 _ = op;
                 const inst = parseInst(trimmed);
                 o.addInst(inst.bin);
