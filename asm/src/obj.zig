@@ -1,7 +1,7 @@
 const std = @import("std");
 const main = @import("main.zig");
 
-const ObjStruct = struct {
+pub const ObjStruct = struct {
     fileName: []const u8 = "",
     segment: []const u8 = "",
 
@@ -26,13 +26,13 @@ const ObjStruct = struct {
         type: enum { i, ui, li, ir, uir, lir },
     };
 
-    pub fn addInst(inst: u32) void {
-        const bytes = std.mem.asBytes(&inst); 
-
+    pub fn addInst(self: *ObjStruct, inst: u32) void {
+        std.debug.print("inst: 0x{x}\n", .{inst});
+        const bytes: []const u8 = std.mem.asBytes(&inst);
+        std.debug.print("bytes: {any}\n", .{bytes});
         for (bytes) |byte| {
-            .text.appendSlice(main.alloc, std.fmt.hex(byte)) catch unreachable;
+            const str = std.fmt.hex(byte);
+            self.text.appendSlice(main.alloc, &str) catch unreachable;
         }
     }
 };
-
-pub const o = ObjStruct{};

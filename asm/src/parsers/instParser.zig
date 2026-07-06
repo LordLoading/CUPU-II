@@ -64,13 +64,13 @@ pub fn parse(instLine: []const u8) InstReloc {
     }
 
     if (isCond) std.debug.print("1\n", .{}) else std.debug.print("0\n", .{});
-    std.debug.print("{b:0>6}\n", .{opcode});
-    std.debug.print("{b:0>5}\n", .{t});
-    std.debug.print("{b:0>5}\n", .{a});
-    std.debug.print("{b:0>5}\n", .{b});
-    std.debug.print("{b:0>11}\n", .{func11});
-    std.debug.print("{b:0>16}\n", .{immediate});
-    std.debug.print("{any}\n", .{label});
+    // std.debug.print("{b:0>6}\n", .{opcode});
+    // std.debug.print("{b:0>5}\n", .{t});
+    // std.debug.print("{b:0>5}\n", .{a});
+    // std.debug.print("{b:0>5}\n", .{b});
+    // std.debug.print("{b:0>11}\n", .{func11});
+    // std.debug.print("{b:0>16}\n", .{immediate});
+    // std.debug.print("{any}\n", .{label});
 
     if (op.opType == 'R') {
         return InstReloc{ .bin = utils.buildR(isCond, opcode, t, a, b, func11), .label = label };
