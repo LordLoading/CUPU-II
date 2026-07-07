@@ -35,4 +35,8 @@ pub const ObjStruct = struct {
             self.text.appendSlice(main.alloc, &str) catch unreachable;
         }
     }
+
+    pub fn addData(self: *ObjStruct, data: []const u8) void { 
+        self.data.appendSlice(main.alloc, data) catch unreachable; 
+    }
 };

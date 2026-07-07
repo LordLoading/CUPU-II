@@ -141,7 +141,7 @@ pub fn getFirstWordAndRest(str: []const u8) u8 {
 
 const DType = enum { section, symbol, data };
 
-const Directive = struct {
+pub const Directive = struct {
     name: []const u8,
     t: DType,
 

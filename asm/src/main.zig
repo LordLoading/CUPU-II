@@ -2,13 +2,13 @@ const std = @import("std");
 const parseInst = @import("parsers/instParser.zig").parse;
 const utils = @import("utils.zig");
 const obj = @import("obj.zig");
+const parseDirective = @import("parsers/directiveParsers.zig").parse; 
 
-var o = obj.ObjStruct{};
-
+pub var o = obj.ObjStruct{};
 pub var alloc: std.mem.Allocator = undefined;
+pub var section: []const u8 = ""; 
 
 pub fn main(init: std.process.Init) !void {
-    var section: []const u8 = "";
     alloc = init.arena.allocator();
 
     const args = try init.minimal.args.toSlice(init.arena.allocator());
@@ -24,7 +24,7 @@ pub fn main(init: std.process.Init) !void {
         if (trimmed.len == 0) continue;
         if (utils.getFirstWord(line)) |firstWord| {
             if (utils.getDirectiveByName(firstWord)) |directive| {
-                if (directive.t == .section) section = directive.name;
+                parseDirective(directive, trimmed);
             }
 
             if (utils.getOpByName(std.mem.trim(u8, firstWord, "!"))) |op| {
@@ -35,5 +35,5 @@ pub fn main(init: std.process.Init) !void {
         }
     }
 
-    std.debug.print("o.text.items: {s}\n", .{o.text.items});
+    std.debug.print("o.text: {s}\n", .{o.text.items});
 }
