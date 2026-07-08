@@ -2,11 +2,11 @@ const std = @import("std");
 const parseInst = @import("parsers/instParser.zig").parse;
 const utils = @import("utils.zig");
 const obj = @import("obj.zig");
-const parseDirective = @import("parsers/directiveParsers.zig").parse; 
+const parseDirective = @import("parsers/directiveParsers.zig").parse;
 
 pub var o = obj.ObjStruct{};
 pub var alloc: std.mem.Allocator = undefined;
-pub var section: []const u8 = ""; 
+pub var section: ?enum { text, data, bss } = null;
 
 pub fn main(init: std.process.Init) !void {
     alloc = init.arena.allocator();
@@ -25,9 +25,14 @@ pub fn main(init: std.process.Init) !void {
         if (utils.getFirstWord(line)) |firstWord| {
             if (utils.getDirectiveByName(firstWord)) |directive| {
                 parseDirective(directive, trimmed);
+                continue;
             }
 
             if (utils.getOpByName(std.mem.trim(u8, firstWord, "!"))) |op| {
+                if (section != .text) {
+                    std.log.err("Error: instruction outside of text section", .{});
+                    std.process.exit(1);
+                }
                 _ = op;
                 const inst = parseInst(trimmed);
                 o.addInst(inst.bin);
@@ -35,5 +40,6 @@ pub fn main(init: std.process.Init) !void {
         }
     }
 
-    std.debug.print("o.text: {s}\n", .{o.text.items});
+    const json = std.json.fmt(o, .{ .whitespace = .indent_2, .emit_null_optional_fields = true, .emit_strings_as_arrays = false, .escape_unicode = false, .emit_nonportable_numbers_as_strings = false });
+    std.debug.print("json: {f}\n", .{json});
 }

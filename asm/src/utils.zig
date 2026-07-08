@@ -117,11 +117,12 @@ pub fn getFirstWord(str: []const u8) ?[]const u8 {
 
 pub const FWR = struct {
     firstWord: []const u8,
-    rest: []const u8,
+    rest: ?[]const u8,
 
-    pub fn init(str: []const u8) FWR {
-        str = std.mem.trim(u8, str, " \t");
-        const firstWord = getFirstWord(str);
+    pub fn init(inStr: []const u8) ?FWR {
+        var str = std.mem.trim(u8, inStr, " \t");
+        const firstWord = getFirstWord(str) orelse return null; 
+        if (firstWord.len == inStr.len) return FWR{ .firstWord = firstWord, .rest = null };
         const rest = str[firstWord.len..];
         return FWR{
             .firstWord = firstWord,
@@ -129,15 +130,6 @@ pub const FWR = struct {
         };
     }
 };
-
-pub fn getFirstWordAndRest(str: []const u8) u8 {
-    var firstWord = std.mem.trim(u8, str, " \t");
-    firstWord = std.mem.findAny(u8, firstWord, " \t") orelse {
-        return firstWord;
-    };
-    if (firstWord.len == 0) return null;
-    return firstWord;
-}
 
 const DType = enum { section, symbol, data };
 
@@ -178,6 +170,5 @@ pub fn getDirectiveByName(name: []const u8) ?Directive {
 }
 
 pub fn trimComment(str: []const u8) []const u8 {
-    if (std.mem.find(u8, str, "#")) |i| return str[0..i]
-    else return str;    
+    if (std.mem.find(u8, str, "#")) |i| return str[0..i] else return str;
 }

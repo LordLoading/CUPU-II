@@ -19,7 +19,6 @@ pub fn parse(instLine: []const u8) InstReloc {
     var label: ?[]const u8 = null;
 
     var iLine = std.mem.trim(u8, instLine, " \t");
-    std.debug.print("iLine: {s}\n", .{iLine});
 
     var inst = iLine[0 .. std.mem.findAny(u8, iLine, " \t") orelse {
         std.log.err("no space found in line: {s}", .{iLine});
@@ -63,7 +62,7 @@ pub fn parse(instLine: []const u8) InstReloc {
         if (i >= op.fmt.len) break;
     }
 
-    if (isCond) std.debug.print("1\n", .{}) else std.debug.print("0\n", .{});
+    // if (isCond) std.debug.print("1\n", .{}) else std.debug.print("0\n", .{});
     // std.debug.print("{b:0>6}\n", .{opcode});
     // std.debug.print("{b:0>5}\n", .{t});
     // std.debug.print("{b:0>5}\n", .{a});

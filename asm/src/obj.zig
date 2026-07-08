@@ -9,13 +9,13 @@ pub const ObjStruct = struct {
     data: std.ArrayList(u8) = .empty,
     bss: std.ArrayList(u8) = .empty,
 
-    symbols: std.ArrayList(Symbol) = .empty,
+    labels: std.ArrayList(Label) = .empty,
     relocations: std.ArrayList(Relocation) = .empty,
 
-    pub const Symbol = struct {
+    pub const Label = struct {
         name: []const u8,
         offset: []const u8,
-        section: []const u8,
+        section: enum { text, data, bss },
         global: bool,
     };
 
@@ -27,16 +27,17 @@ pub const ObjStruct = struct {
     };
 
     pub fn addInst(self: *ObjStruct, inst: u32) void {
-        std.debug.print("inst: 0x{x}\n", .{inst});
         const bytes: []const u8 = std.mem.asBytes(&inst);
-        std.debug.print("bytes: {x}\n", .{bytes});
         for (bytes) |byte| {
             const str = std.fmt.hex(byte);
             self.text.appendSlice(main.alloc, &str) catch unreachable;
         }
     }
 
-    pub fn addData(self: *ObjStruct, data: []const u8) void { 
-        self.data.appendSlice(main.alloc, data) catch unreachable; 
+    pub fn addData(self: *ObjStruct, bytes: []const u8) void { 
+        for (bytes) |byte| {
+            const str = std.fmt.hex(byte);
+            self.data.appendSlice(main.alloc, &str) catch unreachable;
+        }
     }
 };
