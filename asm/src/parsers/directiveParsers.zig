@@ -58,6 +58,13 @@ fn parseData(directive: utils.Directive, valStr: []const u8) void {
             std.process.exit(1);
         };
         main.o.addData(valUtils.asBytes(@TypeOf(val), val));
+    } else if (std.mem.eql(u8, directive.name, ".float")) {
+        const val = valUtils.parseFloat(valStr) orelse {
+            std.log.err("Error: invalid float value: '{s}'", .{valStr});
+            std.process.exit(1);
+        };
+        std.debug.print("float: {x}\n", .{val});
+        main.o.addData(valUtils.asBytes(@TypeOf(val), val));
     }
 }
 

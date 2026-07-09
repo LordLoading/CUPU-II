@@ -1,22 +1,22 @@
 const std = @import("std");
 
-pub fn buildR(cond: bool, opc: u5, t: u5, a: u5, b: u5, func10: u11) u32 {
+pub fn buildR(cond: bool, opc: u5, t: u5, a: u5, b: u5, func11: u11) u32 {
     var bin: u32 = 0x0;
     if (cond) bin |= 0x80000000;
-    bin |= @as(u32, opc) << 25;
-    bin |= @as(u32, t) << 20;
-    bin |= @as(u32, a) << 15;
-    bin |= @as(u32, b) << 10;
-    bin |= @as(u32, func10) << 0;
+    bin |= @as(u32, opc) << 26;
+    bin |= @as(u32, t) << 21;
+    bin |= @as(u32, a) << 16;
+    bin |= @as(u32, b) << 11;
+    bin |= @as(u32, func11) << 0;
     return bin;
 }
 
 pub fn buildI(cond: bool, opc: u5, target: u5, a: u5, immediate: u16) u32 {
     var bin: u32 = 0x0;
     if (cond) bin |= 0x80000000;
-    bin |= @as(u32, opc) << 25;
-    bin |= @as(u32, target) << 20;
-    bin |= @as(u32, a) << 15;
+    bin |= @as(u32, opc) << 26;
+    bin |= @as(u32, target) << 21;
+    bin |= @as(u32, a) << 16;
     bin |= @as(u32, immediate) << 0;
     return bin;
 }
@@ -157,6 +157,7 @@ const directiveTable: []const Directive = &[_]Directive{
     Directive.init(".byte", DType.data),
     Directive.init(".half", DType.data),
     Directive.init(".word", DType.data),
+    Directive.init(".float", DType.data),
     Directive.init(".asciz", DType.data),
 };
 

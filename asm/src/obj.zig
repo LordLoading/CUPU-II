@@ -12,18 +12,21 @@ pub const ObjStruct = struct {
     labels: std.ArrayList(Label) = .empty,
     relocations: std.ArrayList(Relocation) = .empty,
 
+    pub const section = enum { text, data, bss };
+    pub const relocType = enum { val, inst, loadimm };
+
     pub const Label = struct {
         name: []const u8,
-        offset: []const u8,
-        section: enum { text, data, bss },
+        offset: u32,
+        section: section,
         global: bool,
     };
 
     pub const Relocation = struct {
         offset: u32,
-        symbol: []const u8,
-        section: []const u8,
-        type: enum { i, ui, li, ir, uir, lir },
+        label: []const u8,
+        section: section,
+        relocType: relocType,
     };
 
     pub fn addInst(self: *ObjStruct, inst: u32) void {
@@ -34,10 +37,28 @@ pub const ObjStruct = struct {
         }
     }
 
-    pub fn addData(self: *ObjStruct, bytes: []const u8) void { 
+    pub fn addData(self: *ObjStruct, bytes: []const u8) void {
         for (bytes) |byte| {
             const str = std.fmt.hex(byte);
             self.data.appendSlice(main.alloc, &str) catch unreachable;
         }
+    }
+
+    pub fn addRelocation(self: *ObjStruct, label: []const u8, rT: relocType, s: section, offset: u32) void {
+        self.relocations.append(main.alloc, .{
+            .offset = offset,
+            .label = label,
+            .section = s,
+            .relocType = rT,
+        }) catch unreachable;
+    }
+
+    pub fn addLabel(self: *ObjStruct, name: []const u8, offset: u32, s: section, global: bool) void {
+        self.labels.append(main.alloc, .{
+            .name = name,
+            .offset = offset,
+            .section = s,
+            .global = global,
+        }) catch unreachable;
     }
 };

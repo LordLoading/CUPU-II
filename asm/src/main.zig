@@ -35,6 +35,9 @@ pub fn main(init: std.process.Init) !void {
                 }
                 _ = op;
                 const inst = parseInst(trimmed);
+                if (inst.label) |label| {
+                    o.addRelocation(label, .inst, .text, @divFloor(@as(u32, @truncate(o.text.items.len)), 2));
+                }
                 o.addInst(inst.bin);
             }
         }

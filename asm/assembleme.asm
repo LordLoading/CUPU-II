@@ -1,11 +1,17 @@
+.segment main
+
 .text
-!lui $1, -30
-ori $2, $0, 0x1234 #comment
-andi $3, $0, test
-#lone comment
+    !lui $1, -30 #comment
+    ori $2, $0, test 
+    and $3, $1, $2
+    #lone comment
 
 .data
-.word -1
-.half 0x1234
-.byte 0x12
-.byte 0o77
+    .word 11
+    .half 0x1234
+    .byte 0x12
+    .byte 0o77
+    .word 0
+    .word 0
+    .word 0
+    .float 0.1234
