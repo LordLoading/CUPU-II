@@ -63,7 +63,6 @@ fn parseData(directive: utils.Directive, valStr: []const u8) void {
             std.log.err("Error: invalid float value: '{s}'", .{valStr});
             std.process.exit(1);
         };
-        std.debug.print("float: {x}\n", .{val});
         main.o.addData(valUtils.asBytes(@TypeOf(val), val));
     }
 }
@@ -71,5 +70,7 @@ fn parseData(directive: utils.Directive, valStr: []const u8) void {
 fn parseSymbol(directive: utils.Directive, str: []const u8) void {
     if (std.mem.eql(u8, directive.name, ".segment")) {
         main.o.segment = str;
-    } else if (std.mem.eql(u8, directive.name, ".global")) {}
+    } else if (std.mem.eql(u8, directive.name, ".global")) {
+        std.debug.print("global: {s}\n", .{str}); 
+    }
 }

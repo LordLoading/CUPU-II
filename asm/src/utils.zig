@@ -1,4 +1,40 @@
 const std = @import("std");
+const labelUtils = @import("parsers/labelUtils.zig"); 
+const parseDirective = @import("parsers/directiveParsers.zig").parse; 
+const main = @import("main.zig"); 
+const parseInst = @import("parsers/instParser.zig").parse; 
+
+pub fn parseLine(line: []const u8) void {
+    var trimmed = std.mem.trim(u8, line, " \t"); 
+
+    const fwr = FWR.init(trimmed) orelse return;
+
+    if (labelUtils.hasLabel(trimmed)) {
+        trimmed = fwr.rest orelse return;
+        trimmed = std.mem.trim(u8, trimmed, " \t");
+        std.debug.print("rest: {s}\n", .{trimmed});
+    }
+
+    if (getFirstWord(trimmed)) |firstWord| {
+        if (getDirectiveByName(firstWord)) |directive| {
+            parseDirective(directive, trimmed);
+            return;
+        }
+
+        if (getOpByName(std.mem.trim(u8, firstWord, "!"))) |op| {
+            if (main.section != .text) {
+                std.log.err("Error: instruction outside of text section: '{s}'", .{trimmed});
+                std.process.exit(1);
+            }
+            _ = op;
+            const inst = parseInst(trimmed);
+            if (inst.label) |label| {
+                main.o.addRelocation(label, .inst, .text, @divFloor(@as(u32, @truncate(main.o.text.items.len)), 2));
+            }
+            main.o.addInst(inst.bin);
+        }
+    }
+}
 
 pub fn buildR(cond: bool, opc: u5, t: u5, a: u5, b: u5, func11: u11) u32 {
     var bin: u32 = 0x0;
@@ -121,7 +157,7 @@ pub const FWR = struct {
 
     pub fn init(inStr: []const u8) ?FWR {
         var str = std.mem.trim(u8, inStr, " \t");
-        const firstWord = getFirstWord(str) orelse return null; 
+        const firstWord = getFirstWord(str) orelse return null;
         if (firstWord.len == inStr.len) return FWR{ .firstWord = firstWord, .rest = null };
         const rest = str[firstWord.len..];
         return FWR{
