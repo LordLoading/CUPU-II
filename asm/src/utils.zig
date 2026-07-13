@@ -5,14 +5,10 @@ const main = @import("main.zig");
 const parseInst = @import("parsers/instParser.zig").parse; 
 
 pub fn parseLine(line: []const u8) void {
-    var trimmed = std.mem.trim(u8, line, " \t"); 
+    const trimmed = std.mem.trim(u8, line, " \t"); 
 
-    const fwr = FWR.init(trimmed) orelse return;
-
-    if (labelUtils.hasLabel(trimmed)) {
-        trimmed = fwr.rest orelse return;
-        trimmed = std.mem.trim(u8, trimmed, " \t");
-        std.debug.print("rest: {s}\n", .{trimmed});
+    if (labelUtils.hasLabel(trimmed, false)) {
+        return;
     }
 
     if (getFirstWord(trimmed)) |firstWord| {

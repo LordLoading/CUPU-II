@@ -39,16 +39,12 @@ pub const ObjStruct = struct {
 
     pub fn addData(self: *ObjStruct, bytes: []const u8) void {
         std.debug.print("raw: {x}\n", .{bytes});
-        _ = self;
 
         for (bytes) |byte| {
-            if (bytes.len > 1) {
-                std.debug.print("2: {x}\n", .{bytes[1]});
-            }
             const str = std.fmt.hex(byte);
             std.debug.print("hex: {x}\n", .{byte});
             std.debug.print("str: {s}\n\n", .{str});
-            // self.data.appendSlice(main.alloc, &str) catch unreachable;
+            self.data.appendSlice(main.alloc, &str) catch unreachable;
         }
         
         return;

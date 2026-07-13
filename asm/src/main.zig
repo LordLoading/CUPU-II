@@ -3,7 +3,6 @@ const parseInst = @import("parsers/instParser.zig").parse;
 const utils = @import("utils.zig");
 const obj = @import("obj.zig");
 const parseDirective = @import("parsers/directiveParsers.zig").parse;
-const labelUtils = @import("parsers/labelUtils.zig");
 
 pub var o = obj.ObjStruct{};
 pub var alloc: std.mem.Allocator = undefined;
