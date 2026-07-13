@@ -5,14 +5,10 @@ const main = @import("main.zig");
 const parseInst = @import("parsers/instParser.zig").parse; 
 
 pub fn parseLine(line: []const u8) void {
-    var trimmed = std.mem.trim(u8, line, " \t"); 
+    const trimmed = std.mem.trim(u8, line, " \t"); 
 
-    const fwr = FWR.init(trimmed) orelse return;
-
-    if (labelUtils.hasLabel(trimmed)) {
-        trimmed = fwr.rest orelse return;
-        trimmed = std.mem.trim(u8, trimmed, " \t");
-        std.debug.print("rest: {s}\n", .{trimmed});
+    if (labelUtils.hasLabel(trimmed, false)) {
+        return;
     }
 
     if (getFirstWord(trimmed)) |firstWord| {
@@ -130,6 +126,14 @@ const opTable: []const Op = &[_]Op{
     //jumps
     Op.init("jal", 'I', "tai", 0x10, 0x000),
     Op.init("jral", 'I', "tai", 0x11, 0x000),
+    //unsigned immediate alu 
+    Op.init("uaddi", 'I', "tai", 0x18, 0x000), 
+    Op.init("usubi", 'I', "tai", 0x19, 0x000),                                                             
+    Op.init("umuli", 'I', "tai", 0x1A, 0x000),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+    Op.init("udivi", 'I', "tai", 0x1B, 0x000),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+    Op.init("uori", 'I', "tai", 0x1C, 0x000),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+    Op.init("uandi", 'I', "tai", 0x1D, 0x000),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+    Op.init("uxori", 'I', "tai", 0x1E, 0x000),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
 };
 
 pub fn getOpByName(name: []const u8) ?Op {

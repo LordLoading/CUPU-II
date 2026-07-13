@@ -3,11 +3,10 @@ const parseInst = @import("parsers/instParser.zig").parse;
 const utils = @import("utils.zig");
 const obj = @import("obj.zig");
 const parseDirective = @import("parsers/directiveParsers.zig").parse;
-const labelUtils = @import("parsers/labelUtils.zig");
 
 pub var o = obj.ObjStruct{};
 pub var alloc: std.mem.Allocator = undefined;
-pub var section: ?obj.ObjStruct.section = null; 
+pub var section: ?obj.ObjStruct.section = null;
 
 pub fn main(init: std.process.Init) !void {
     alloc = init.arena.allocator();
@@ -26,6 +25,12 @@ pub fn main(init: std.process.Init) !void {
         utils.parseLine(trimmed);
     }
 
-    const json = std.json.fmt(o, .{ .whitespace = .indent_2, .emit_null_optional_fields = true, .emit_strings_as_arrays = false, .escape_unicode = false, .emit_nonportable_numbers_as_strings = false });
-    std.debug.print("json: {f}\n", .{json});
+    const json = std.json.fmt(o, .{ .whitespace = .indent_2, .emit_null_optional_fields = true});
+
+    const jsonStr = std.fmt.allocPrint(alloc, "{f}", .{json}) catch |err| {
+        std.log.err("json alloc error: {any}", .{err});
+        std.process.exit(1); 
+    };
+
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .data = jsonStr, .sub_path = "assembleme.o" });
 }

@@ -5,7 +5,7 @@
     !lui $1, -30 #comment
     ori $2, $0, test 
     and $3, $1, $2
-    balls:
+    balls: ori $4, $0, test 
     #lone comment
 
 .data

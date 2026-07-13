@@ -3,6 +3,7 @@ const ObjStruct = @import("../obj.zig").ObjStruct;
 const main = @import("../main.zig");
 const utils = @import("../utils.zig");
 const valUtils = @import("valUtils.zig");
+const labelUtils = @import("../parsers/labelUtils.zig");
 
 pub fn parse(directive: utils.Directive, trimmed: []const u8) void {
     if (directive.t == .section) {
@@ -71,6 +72,9 @@ fn parseSymbol(directive: utils.Directive, str: []const u8) void {
     if (std.mem.eql(u8, directive.name, ".segment")) {
         main.o.segment = str;
     } else if (std.mem.eql(u8, directive.name, ".global")) {
-        std.debug.print("global: {s}\n", .{str}); 
+        if (!labelUtils.hasLabel(str, true)) {
+            std.log.err(".global has no label", .{});
+            std.process.exit(1);
+        }
     }
 }
