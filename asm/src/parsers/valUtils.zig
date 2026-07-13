@@ -27,6 +27,53 @@ pub fn parse(valStr: []const u8) ValOrLabel {
     }
 }
 
+// for transparency, this function is written by ai
+pub fn unescape(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
+    var out: std.ArrayList(u8) = .empty; 
+    errdefer out.deinit(allocator); 
+    var i: usize = 0;
+    while (i < input.len) : (i += 1) {
+        const c = input[i];
+        if (c != '\\') {
+            try out.append(allocator, c);
+            continue;
+        }
+        // We have a backslash; need the next byte.
+        if (i + 1 >= input.len) return error.TrailingBackslash;
+        i += 1;
+        const next = input[i];
+        switch (next) {
+            'n'  => try out.append(allocator, '\n'),
+            't'  => try out.append(allocator, '\t'),
+            'r'  => try out.append(allocator, '\r'),
+            '\\' => try out.append(allocator, '\\'),
+            '\'' => try out.append(allocator, '\''),
+            '"'  => try out.append(allocator, '"'),
+            'x'  => {
+                // \xHH  (two hex digits)
+                if (i + 2 >= input.len) return error.InvalidEscape;
+                const hi = try std.fmt.parseInt(u8, input[i + 1 .. i + 3], 16);
+                try out.append(allocator, hi); 
+                i += 2;
+            },
+            'u'  => {
+                // \u{XXXX}  (braced unicode code point)
+                i += 1;
+                const close = std.mem.indexOfScalarPos(u8, input, i, '}') orelse
+                    return error.InvalidEscape;
+                const cp = try std.fmt.parseInt(u21, input[i..close], 16);
+                var buf: [4]u8 = undefined;
+                const len = std.unicode.utf8Encode(cp, &buf) catch
+                    return error.InvalidCodePoint;
+                try out.appendSlice(allocator, buf[0..len]);
+                i = close; // the '}' is skipped; loop's i+=1 moves past it
+            },
+            else => return error.InvalidEscape,
+        }
+    }
+    return out.toOwnedSlice(allocator);
+}
+
 fn parseIntAutoBase(T: type, valStr: []const u8) ?std.meta.Int(.unsigned, @typeInfo(T).int.bits) {
     const iT: type = std.meta.Int(.signed, @typeInfo(T).int.bits);
     const uT: type = std.meta.Int(.unsigned, @typeInfo(T).int.bits);
