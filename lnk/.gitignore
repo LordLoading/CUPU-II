@@ -1,0 +1,17 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/linker
+linker.so
+linker.dylib
+linker.dll
+liblinker.a
+linker.a
+linker.lib
+linker-test-*
+*.exe
+*.pdb
+*.o
+*.obj
+*.lst

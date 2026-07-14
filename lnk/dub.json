@@ -1,0 +1,9 @@
+{
+	"description": "a linker for cupu-II object files",
+	"license": "proprietary",
+	"authors": [
+		"LordLoading"
+	],
+	"copyright": "Copyright © 2026, LordLoading",
+	"name": "linker"
+}
