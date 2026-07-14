@@ -199,6 +199,7 @@ const directiveTable: []const Directive = &[_]Directive{
     Directive.init(".word", DType.data),
     Directive.init(".float", DType.data),
     Directive.init(".asciz", DType.data),
+    Directive.init(".ascii", DType.data), 
 };
 
 pub fn getDirectiveByName(name: []const u8) ?Directive {
@@ -211,5 +212,5 @@ pub fn getDirectiveByName(name: []const u8) ?Directive {
 }
 
 pub fn trimComment(str: []const u8) []const u8 {
-    if (std.mem.find(u8, str, "#")) |i| return str[0..i] else return str;
+    if (std.mem.findAny(u8, str, "#;")) |i| return str[0..i] else return str;
 }

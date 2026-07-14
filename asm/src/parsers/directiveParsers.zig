@@ -80,6 +80,18 @@ fn parseData(directive: utils.Directive, valStr: []const u8) void {
         trimmed = valUtils.unescape(main.alloc, trimmed) catch unreachable; 
 
         main.o.addData(trimmed); 
+    } else if (std.mem.eql(u8, directive.name, ".asciz")) { 
+        var trimmed = std.mem.trim(u8, valStr, " \t"); 
+        if (trimmed[0] != '"' or trimmed[trimmed.len - 1] != '"') { 
+            std.log.err("Error: invalid ascii value: '{s}'", .{valStr}); 
+            std.process.exit(1); 
+        }
+
+        trimmed = trimmed[1..trimmed.len - 1]; 
+        trimmed = valUtils.unescape(main.alloc, trimmed) catch unreachable; 
+
+        main.o.addData(trimmed);
+        main.o.addData("\x00"); 
     }
 }
 
