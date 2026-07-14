@@ -14,6 +14,10 @@ pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     _ = args;
 
+    const num: i32 = -400;
+    const flt: f32 = @bitCast(num);
+    o.addData(std.mem.asBytes(&flt));
+
     const contents = try std.Io.Dir.cwd().readFileAlloc(init.io, "assembleme.asm", init.gpa, .limited(1234));
     defer init.gpa.free(contents);
 

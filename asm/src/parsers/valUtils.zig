@@ -145,7 +145,3 @@ pub fn lower(val: u32) u16 {
 pub fn signExtends(val: u32) bool {
     return lower(u32, val) & 0x8000 != 0;
 }
-
-pub fn asBytes(T: type, val: T) []const u8 {
-    return std.mem.asBytes(&val);
-}

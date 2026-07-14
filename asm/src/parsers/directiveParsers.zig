@@ -46,25 +46,29 @@ fn parseData(directive: utils.Directive, valStr: []const u8) void {
             std.log.err("Error: invalid word value: '{s}'", .{valStr});
             std.process.exit(1);
         };
-        main.o.addData(valUtils.asBytes(@TypeOf(val), val));
+        const bytes = std.mem.asBytes(&val);
+        main.o.addData(bytes);
     } else if (std.mem.eql(u8, directive.name, ".half")) {
         const val = valUtils.parseHalf(valStr) orelse {
             std.log.err("Error: invalid half value: '{s}'", .{valStr});
             std.process.exit(1);
         };
-        main.o.addData(valUtils.asBytes(@TypeOf(val), val));
+        const bytes = std.mem.asBytes(&val);
+        main.o.addData(bytes);
     } else if (std.mem.eql(u8, directive.name, ".byte")) {
         const val = valUtils.parseByte(valStr) orelse {
             std.log.err("Error: invalid byte value: '{s}'", .{valStr});
             std.process.exit(1);
         };
-        main.o.addData(valUtils.asBytes(@TypeOf(val), val));
+        const bytes = std.mem.asBytes(&val);
+        main.o.addData(bytes);
     } else if (std.mem.eql(u8, directive.name, ".float")) {
         const val = valUtils.parseFloat(valStr) orelse {
             std.log.err("Error: invalid float value: '{s}'", .{valStr});
             std.process.exit(1);
         };
-        main.o.addData(valUtils.asBytes(@TypeOf(val), val));
+        const bytes = std.mem.asBytes(&val);
+        main.o.addData(bytes);
     } else if (std.mem.eql(u8, directive.name, ".ascii")) { 
         var trimmed = std.mem.trim(u8, valStr, " \t"); 
         if (trimmed[0] != '"' or trimmed[trimmed.len - 1] != '"') { 

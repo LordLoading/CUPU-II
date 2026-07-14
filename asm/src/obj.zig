@@ -41,6 +41,7 @@ pub const ObjStruct = struct {
         std.debug.print("raw: {x}\n", .{bytes});
 
         for (bytes) |byte| {
+            // @breakpoint();
             const str = std.fmt.hex(byte);
             std.debug.print("hex: {x}\n", .{byte});
             std.debug.print("str: {s}\n\n", .{str});
