@@ -12,9 +12,20 @@ pub fn main(init: std.process.Init) !void {
     alloc = init.arena.allocator();
 
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    _ = args;
+    // const cwd = std.process.currentPathAlloc(init.io, alloc) catch |err| { 
+    //     std.log.err("error: {any}", .{err}); 
+    //     std.process.exit(1); 
+    // };                                                         
+    // std.debug.print("cwd: {s}\n", .{cwd}); 
 
-    const contents = try std.Io.Dir.cwd().readFileAlloc(init.io, "assembleme.asm", init.gpa, .limited(1234));
+    if (args.len < 2) { 
+        std.log.info("Usage: zig run assembleme.asm <input file> <output file>\n", .{});                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+        std.process.exit(0);
+    }                                                                                             
+
+    o.fileName = args[1]; 
+
+    const contents = try std.Io.Dir.cwd().readFileAlloc(init.io, o.fileName, init.gpa, .limited(1234));
     defer init.gpa.free(contents);
 
     var lines = std.mem.splitAny(u8, contents, "\n");
@@ -32,5 +43,15 @@ pub fn main(init: std.process.Init) !void {
         std.process.exit(1); 
     };
 
-    try std.Io.Dir.cwd().writeFile(init.io, .{ .data = jsonStr, .sub_path = "assembleme.o" });
+    var outFile = o.fileName[0..std.mem.findLast(u8, o.fileName, ".").?]; 
+    outFile = std.fmt.allocPrint(alloc, "{s}.o", .{outFile}) catch |err| { 
+        std.log.err("outFile alloc error: {any}", .{err}); 
+        std.process.exit(1); 
+    };                                                                            
+
+    if (args.len > 2) {
+        outFile = args[2]; 
+    }
+
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .data = jsonStr, .sub_path = outFile });
 }

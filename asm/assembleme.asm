@@ -9,11 +9,11 @@
     #lone comment
 
 .data
-    .global wrd: .word 0x10004444
+    .asciz "Hello World" 
+    .global wrd: .word 0x10004443
     .half 0x1234
     .byte 0x12
     .byte 0o77
     .word 0
-    .word 0
-    .word 0
     .float 0.1234
+    .ascii "\\n" 

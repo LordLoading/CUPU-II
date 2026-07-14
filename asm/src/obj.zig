@@ -38,16 +38,10 @@ pub const ObjStruct = struct {
     }
 
     pub fn addData(self: *ObjStruct, bytes: []const u8) void {
-        std.debug.print("raw: {x}\n", .{bytes});
-
         for (bytes) |byte| {
             const str = std.fmt.hex(byte);
-            std.debug.print("hex: {x}\n", .{byte});
-            std.debug.print("str: {s}\n\n", .{str});
             self.data.appendSlice(main.alloc, &str) catch unreachable;
         }
-        
-        return;
     }
 
     pub fn addRelocation(self: *ObjStruct, label: []const u8, rT: relocType, s: section, offset: u32) void {
