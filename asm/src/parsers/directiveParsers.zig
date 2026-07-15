@@ -69,29 +69,29 @@ fn parseData(directive: utils.Directive, valStr: []const u8) void {
         };
         const bytes = std.mem.asBytes(&val);
         main.o.addData(bytes);
-    } else if (std.mem.eql(u8, directive.name, ".ascii")) { 
-        var trimmed = std.mem.trim(u8, valStr, " \t"); 
-        if (trimmed[0] != '"' or trimmed[trimmed.len - 1] != '"') { 
-            std.log.err("Error: invalid ascii value: '{s}'", .{valStr}); 
-            std.process.exit(1); 
+    } else if (std.mem.eql(u8, directive.name, ".ascii")) {
+        var trimmed = std.mem.trim(u8, valStr, " \t");
+        if (trimmed[0] != '"' or trimmed[trimmed.len - 1] != '"') {
+            std.log.err("Error: invalid ascii value: '{s}'", .{valStr});
+            std.process.exit(1);
         }
 
-        trimmed = trimmed[1..trimmed.len - 1]; 
-        trimmed = valUtils.unescape(main.alloc, trimmed) catch unreachable; 
-
-        main.o.addData(trimmed); 
-    } else if (std.mem.eql(u8, directive.name, ".asciz")) { 
-        var trimmed = std.mem.trim(u8, valStr, " \t"); 
-        if (trimmed[0] != '"' or trimmed[trimmed.len - 1] != '"') { 
-            std.log.err("Error: invalid ascii value: '{s}'", .{valStr}); 
-            std.process.exit(1); 
-        }
-
-        trimmed = trimmed[1..trimmed.len - 1]; 
-        trimmed = valUtils.unescape(main.alloc, trimmed) catch unreachable; 
+        trimmed = trimmed[1 .. trimmed.len - 1];
+        trimmed = valUtils.unescape(main.alloc, trimmed) catch unreachable;
 
         main.o.addData(trimmed);
-        main.o.addData("\x00"); 
+    } else if (std.mem.eql(u8, directive.name, ".asciz")) {
+        var trimmed = std.mem.trim(u8, valStr, " \t");
+        if (trimmed[0] != '"' or trimmed[trimmed.len - 1] != '"') {
+            std.log.err("Error: invalid ascii value: '{s}'", .{valStr});
+            std.process.exit(1);
+        }
+
+        trimmed = trimmed[1 .. trimmed.len - 1];
+        trimmed = valUtils.unescape(main.alloc, trimmed) catch unreachable;
+
+        main.o.addData(trimmed);
+        main.o.addData("\x00");
     }
 }
 
@@ -103,5 +103,10 @@ fn parseSymbol(directive: utils.Directive, str: []const u8) void {
             std.log.err(".global has no label", .{});
             std.process.exit(1);
         }
+    } else if (std.mem.eql(u8, directive.name, ".import")) {
+        main.o.imports.append(main.alloc, str) catch {
+            std.log.err("Error: failed to append import", .{});
+            std.process.exit(1);
+        };
     }
 }

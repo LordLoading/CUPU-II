@@ -44,7 +44,7 @@ pub fn main(init: std.process.Init) !void {
     };
 
     var outFile = o.fileName[0..std.mem.findLast(u8, o.fileName, ".").?]; 
-    outFile = std.fmt.allocPrint(alloc, "{s}.o", .{outFile}) catch |err| { 
+    outFile = std.fmt.allocPrint(alloc, "out/{s}.o", .{outFile}) catch |err| { 
         std.log.err("outFile alloc error: {any}", .{err}); 
         std.process.exit(1); 
     };                                                                            
