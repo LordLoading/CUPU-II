@@ -1,0 +1,53 @@
+{
+  "fileName": "test/toast/b.asm",
+  "segment": "",
+  "imports": {
+    "items": [],
+    "capacity": 0
+  },
+  "text": {
+    "items": "3412203c78562170",
+    "capacity": 131
+  },
+  "data": {
+    "items": "7856341248656c6c6f2c20776f726c64210012",
+    "capacity": 131
+  },
+  "bss": {
+    "items": "",
+    "capacity": 0
+  },
+  "labels": {
+    "items": [
+      {
+        "name": "main",
+        "offset": 0,
+        "section": "text",
+        "global": true
+      },
+      {
+        "name": "word",
+        "offset": 0,
+        "section": "data",
+        "global": false
+      },
+      {
+        "name": "str",
+        "offset": 4,
+        "section": "data",
+        "global": false
+      },
+      {
+        "name": "byte",
+        "offset": 18,
+        "section": "data",
+        "global": false
+      }
+    ],
+    "capacity": 6
+  },
+  "relocations": {
+    "items": [],
+    "capacity": 0
+  }
+}

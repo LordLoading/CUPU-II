@@ -12,6 +12,5 @@ linker.lib
 linker-test-*
 *.exe
 *.pdb
-*.o
 *.obj
 *.lst
