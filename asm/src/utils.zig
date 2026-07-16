@@ -163,7 +163,7 @@ pub const FWR = struct {
         var str = std.mem.trim(u8, inStr, " \t");
         const firstWord = getFirstWord(str) orelse return null;
         if (firstWord.len == inStr.len) return FWR{ .firstWord = firstWord, .rest = null };
-        const rest = str[firstWord.len..];
+        const rest = std.mem.trim(u8, str[firstWord.len..], " \t");
         return FWR{
             .firstWord = firstWord,
             .rest = rest,
@@ -189,8 +189,7 @@ const directiveTable: []const Directive = &[_]Directive{
     Directive.init(".text", DType.section),
     Directive.init(".data", DType.section),
     Directive.init(".bss", DType.section),
-    Directive.init(".rodata", DType.section),
-    Directive.init(".include", DType.symbol),
+    Directive.init(".import", DType.symbol),
     Directive.init(".segment", DType.symbol),
     Directive.init(".global", DType.symbol),
     Directive.init(".equ", DType.symbol),

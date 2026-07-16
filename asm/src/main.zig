@@ -12,18 +12,18 @@ pub fn main(init: std.process.Init) !void {
     alloc = init.arena.allocator();
 
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    // const cwd = std.process.currentPathAlloc(init.io, alloc) catch |err| { 
-    //     std.log.err("error: {any}", .{err}); 
-    //     std.process.exit(1); 
-    // };                                                         
-    // std.debug.print("cwd: {s}\n", .{cwd}); 
+    // const cwd = std.process.currentPathAlloc(init.io, alloc) catch |err| {
+    //     std.log.err("error: {any}", .{err});
+    //     std.process.exit(1);
+    // };
+    // std.debug.print("cwd: {s}\n", .{cwd});
 
-    if (args.len < 2) { 
-        std.log.info("Usage: zig run assembleme.asm <input file> <output file>\n", .{});                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+    if (args.len < 2) {
+        std.log.info("Usage: zig run assembleme.asm <input file> <output file>\n", .{});
         std.process.exit(0);
-    }                                                                                             
+    }
 
-    o.fileName = args[1]; 
+    o.fileName = args[1];
 
     const contents = try std.Io.Dir.cwd().readFileAlloc(init.io, o.fileName, init.gpa, .limited(1234));
     defer init.gpa.free(contents);
@@ -36,22 +36,36 @@ pub fn main(init: std.process.Init) !void {
         utils.parseLine(trimmed);
     }
 
-    const json = std.json.fmt(o, .{ .whitespace = .indent_2, .emit_null_optional_fields = true});
+    const json = std.json.fmt(o, .{ .whitespace = .indent_2, .emit_null_optional_fields = true });
 
     const jsonStr = std.fmt.allocPrint(alloc, "{f}", .{json}) catch |err| {
         std.log.err("json alloc error: {any}", .{err});
-        std.process.exit(1); 
+        std.process.exit(1);
     };
 
-    var outFile = o.fileName[0..std.mem.findLast(u8, o.fileName, ".").?]; 
-    outFile = std.fmt.allocPrint(alloc, "{s}.o", .{outFile}) catch |err| { 
-        std.log.err("outFile alloc error: {any}", .{err}); 
-        std.process.exit(1); 
-    };                                                                            
+    var outFile = o.fileName[0..std.mem.findLast(u8, o.fileName, ".").?];
+    outFile = std.fmt.allocPrint(alloc, "out/{s}.o", .{outFile}) catch |err| {
+        std.log.err("outFile alloc error: {any}", .{err});
+        std.process.exit(1);
+    };
 
     if (args.len > 2) {
-        outFile = args[2]; 
+        outFile = args[2];
     }
 
-    try std.Io.Dir.cwd().writeFile(init.io, .{ .data = jsonStr, .sub_path = outFile });
+    std.Io.Dir.cwd().writeFile(init.io, .{ .data = jsonStr, .sub_path = outFile }) catch |err| {
+        switch (err) {
+            error.FileNotFound => {
+                std.Io.Dir.cwd().createDirPath(init.io, outFile[0..std.mem.findLast(u8, outFile, "/").?]) catch |errr| {
+                    std.log.err("createDirPath error: {any}", .{errr});
+                    std.process.exit(1);
+                };
+                std.Io.Dir.cwd().writeFile(init.io, .{ .data = jsonStr, .sub_path = outFile }) catch |errr| {
+                    std.log.err("writeFile error: {any}", .{errr});
+                    std.process.exit(1);
+                };
+            },
+            else => std.log.err("writeFile error: {any}", .{err}),
+        }
+    };
 }
