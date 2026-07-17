@@ -14,7 +14,7 @@ pub const ObjStruct = struct {
     relocations: std.ArrayList(Relocation) = .empty,
 
     pub const section = enum { text, data, bss };
-    pub const relocType = enum { val, inst, loadimm };
+    pub const relocType = enum { val, imm, uimm };
 
     pub const Label = struct {
         name: []const u8,

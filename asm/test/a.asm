@@ -1,9 +1,8 @@
 .segment main
-.import b
 
 .text
-.global main: lui $1, 0x1234
-uori $1, $1, 0x5678
+.global main: lui $1, toast.word
+uori $1, $1, toast.word
 
 .data
 word: .word 0x12345678
