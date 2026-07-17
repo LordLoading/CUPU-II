@@ -14,8 +14,6 @@ void main() {
     ObjFile[string] o;
 
     foreach (string filename; dirEntries("test", "*.o", SpanMode.depth)) {
-        if (!filename.endsWith(".o"))
-            continue;
 
         string content = cast(string) read(filename);
         JSONValue obj = parseJSON(content);

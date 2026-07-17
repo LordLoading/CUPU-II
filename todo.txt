@@ -1,5 +1,5 @@
-(B) 2026-07-04 parse and process labels +asm
-(B) 2026-07-04 parse and process directives +asm
-(C) 2026-07-04 deal with relocations +asm
-(C) 2026-07-04 get command line arguments to determine input and output files +asm
-(A) 2026-07-06 figure out obj structure +asm
+x 2026-07-17 2026-07-04 parse and process labels +asm
+x 2026-07-17 2026-07-04 parse and process directives +asm
+x 2026-07-17 2026-07-04 deal with relocations +asm
+x 2026-07-17 2026-07-04 get command line arguments to determine input and output files +asm
+x 2026-07-17 2026-07-06 figure out obj structure +asm
