@@ -1,11 +1,11 @@
 const std = @import("std");
-const labelUtils = @import("parsers/labelUtils.zig"); 
-const parseDirective = @import("parsers/directiveParsers.zig").parse; 
-const main = @import("main.zig"); 
-const parseInst = @import("parsers/instParser.zig").parse; 
+const labelUtils = @import("parsers/labelUtils.zig");
+const parseDirective = @import("parsers/directiveParsers.zig").parse;
+const main = @import("main.zig");
+const parseInst = @import("parsers/instParser.zig").parse;
 
 pub fn parseLine(line: []const u8) void {
-    const trimmed = std.mem.trim(u8, line, " \t"); 
+    const trimmed = std.mem.trim(u8, line, " \t");
 
     if (labelUtils.hasLabel(trimmed, false)) {
         return;
@@ -22,10 +22,13 @@ pub fn parseLine(line: []const u8) void {
                 std.log.err("Error: instruction outside of text section: '{s}'", .{trimmed});
                 std.process.exit(1);
             }
-            _ = op;
             const inst = parseInst(trimmed);
             if (inst.label) |label| {
-                main.o.addRelocation(label, .inst, .text, @divFloor(@as(u32, @truncate(main.o.text.items.len)), 2));
+                if (std.mem.eql(u8, op.name, "lui")) {
+                    main.o.addRelocation(label, .uimm, .text, @divFloor(@as(u32, @truncate(main.o.text.items.len)), 2));
+                } else {
+                    main.o.addRelocation(label, .imm, .text, @divFloor(@as(u32, @truncate(main.o.text.items.len)), 2));
+                }
             }
             main.o.addInst(inst.bin);
         }
@@ -126,14 +129,14 @@ const opTable: []const Op = &[_]Op{
     //jumps
     Op.init("jal", 'I', "tai", 0x10, 0x000),
     Op.init("jral", 'I', "tai", 0x11, 0x000),
-    //unsigned immediate alu 
-    Op.init("uaddi", 'I', "tai", 0x18, 0x000), 
-    Op.init("usubi", 'I', "tai", 0x19, 0x000),                                                             
-    Op.init("umuli", 'I', "tai", 0x1A, 0x000),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
-    Op.init("udivi", 'I', "tai", 0x1B, 0x000),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
-    Op.init("uori", 'I', "tai", 0x1C, 0x000),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
-    Op.init("uandi", 'I', "tai", 0x1D, 0x000),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
-    Op.init("uxori", 'I', "tai", 0x1E, 0x000),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+    //unsigned immediate alu
+    Op.init("uaddi", 'I', "tai", 0x18, 0x000),
+    Op.init("usubi", 'I', "tai", 0x19, 0x000),
+    Op.init("umuli", 'I', "tai", 0x1A, 0x000),
+    Op.init("udivi", 'I', "tai", 0x1B, 0x000),
+    Op.init("uori", 'I', "tai", 0x1C, 0x000),
+    Op.init("uandi", 'I', "tai", 0x1D, 0x000),
+    Op.init("uxori", 'I', "tai", 0x1E, 0x000),
 };
 
 pub fn getOpByName(name: []const u8) ?Op {
@@ -198,7 +201,7 @@ const directiveTable: []const Directive = &[_]Directive{
     Directive.init(".word", DType.data),
     Directive.init(".float", DType.data),
     Directive.init(".asciz", DType.data),
-    Directive.init(".ascii", DType.data), 
+    Directive.init(".ascii", DType.data),
 };
 
 pub fn getDirectiveByName(name: []const u8) ?Directive {

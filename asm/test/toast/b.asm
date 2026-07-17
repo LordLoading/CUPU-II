@@ -1,6 +1,7 @@
-segment toast
+.segment toast
+
 .text
-.global main: lui $1, 0x1234
+.global moan: lui $1, 0x1234
 uori $1, $1, 0x5678
 
 .data
