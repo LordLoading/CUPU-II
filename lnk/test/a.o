@@ -2,13 +2,11 @@
   "fileName": "test/a.asm",
   "segment": "main",
   "imports": {
-    "items": [
-      "b"
-    ],
-    "capacity": 9
+    "items": [],
+    "capacity": 0
   },
   "text": {
-    "items": "3412203c78562170",
+    "items": "0000203c00002170",
     "capacity": 131
   },
   "data": {
@@ -49,7 +47,20 @@
     "capacity": 6
   },
   "relocations": {
-    "items": [],
-    "capacity": 0
+    "items": [
+      {
+        "offset": 0,
+        "label": "toast.word",
+        "section": "text",
+        "relocType": "uimm"
+      },
+      {
+        "offset": 4,
+        "label": "toast.word",
+        "section": "text",
+        "relocType": "imm"
+      }
+    ],
+    "capacity": 6
   }
 }

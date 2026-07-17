@@ -3,22 +3,20 @@ import std.algorithm;
 import std.conv;
 import std.array;
 
-enum RelocType
-{
-    inst,
-    data,
-    bss,
+enum RelocType {
+    val,
+    imm,
+    uimm
 }
 
-struct Label
-{
+struct Label {
     string name;
     long offset;
     string section;
     bool global;
+    long address = 0;
 
-    static Label fromJSON(JSONValue obj)
-    {
+    static Label fromJSON(JSONValue obj) {
         Label l;
         l.name = obj["name"].str;
         l.offset = obj["offset"].integer;
@@ -28,15 +26,13 @@ struct Label
     }
 }
 
-struct Relocation
-{
+struct Relocation {
     long offset;
     string label;
     string section;
     RelocType relocType;
 
-    static Relocation fromJSON(JSONValue obj)
-    {
+    static Relocation fromJSON(JSONValue obj) {
         Relocation r;
         r.offset = obj["offset"].integer;
         r.label = obj["label"].str;
@@ -46,8 +42,7 @@ struct Relocation
     }
 }
 
-struct ObjFile
-{
+struct ObjFile {
     string fileName;
     string segment;
     string text;
@@ -55,9 +50,11 @@ struct ObjFile
     string bss;
     Label[] labels;
     Relocation[] relocations;
+    long textAddress = 0;
+    long dataAddress = 0;
+    long bssAddress = 0;
 
-    static ObjFile fromJSON(JSONValue obj)
-    {
+    static ObjFile fromJSON(JSONValue obj) {
         ObjFile o;
         o.fileName = obj["fileName"].str;
         o.segment = obj["segment"].str;

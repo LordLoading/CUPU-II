@@ -1,6 +1,6 @@
 {
   "fileName": "test/toast/b.asm",
-  "segment": "",
+  "segment": "toast",
   "imports": {
     "items": [],
     "capacity": 0
@@ -20,7 +20,7 @@
   "labels": {
     "items": [
       {
-        "name": "main",
+        "name": "moan",
         "offset": 0,
         "section": "text",
         "global": true

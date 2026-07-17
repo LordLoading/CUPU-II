@@ -2,19 +2,31 @@ import std.stdio;
 import std.file;
 import std.json;
 import std.string;
+import std.digest;
 import obj;
+import utils;
 
-void main()
-{
-    ObjFile[] o;
+long textLen = 0;
+long dataLen = 0;
+long bssLen = 0;
 
-    foreach(string filename; dirEntries("test", "*.o", SpanMode.depth)) {
-        if (!filename.endsWith(".o")) continue;
+void main() {
+    ObjFile[string] o;
+
+    foreach (string filename; dirEntries("test", "*.o", SpanMode.depth)) {
+        if (!filename.endsWith(".o"))
+            continue;
 
         string content = cast(string) read(filename);
         JSONValue obj = parseJSON(content);
-        o ~= ObjFile.fromJSON(obj);
+        o[obj["segment"].str] = ObjFile.fromJSON(obj);
     }
 
-    writeln(o);
+    o = fillSectionAddreses(o);
+    o = fillLabels(o);
+    o = applyRelocations(o);
+    string merged = mergeObjFiles(o);
+    writeln(merged);
+    ubyte[] bytes = merged.fromHexString;
+    std.file.write("t", bytes);
 }
