@@ -1,5 +1,7 @@
 import std.json;
 import std.algorithm;
+import std.conv;
+import std.array;
 
 enum RelocType
 {
@@ -28,7 +30,7 @@ struct Label
 
 struct Relocation
 {
-    int offset;
+    long offset;
     string label;
     string section;
     RelocType relocType;
