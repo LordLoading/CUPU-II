@@ -8,6 +8,12 @@ pub var o = obj.ObjStruct{};
 pub var alloc: std.mem.Allocator = undefined;
 pub var section: ?obj.ObjStruct.section = null;
 
+pub var text: std.ArrayList(u8) = .empty;
+pub var data: std.ArrayList(u8) = .empty;
+pub var bss: std.ArrayList(u8) = .empty;
+pub var labels: std.ArrayList(obj.ObjStruct.Label) = .empty;
+pub var relocations: std.ArrayList(obj.ObjStruct.Relocation) = .empty;
+
 var fileName: []const u8 = "";
 
 pub fn main(init: std.process.Init) !void {
@@ -32,6 +38,12 @@ pub fn main(init: std.process.Init) !void {
 
         utils.parseLine(trimmed);
     }
+
+    o.text = text.items;
+    o.data = data.items;
+    o.bss = bss.items;
+    o.labels = labels.items;
+    o.relocations = relocations.items;
 
     const json = std.json.fmt(o, .{ .whitespace = .indent_2, .emit_null_optional_fields = true });
 
