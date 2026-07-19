@@ -2,9 +2,7 @@ const std = @import("std");
 const main = @import("main.zig");
 
 pub const ObjStruct = struct {
-    fileName: []const u8 = "",
     segment: []const u8 = "",
-    imports: std.ArrayList([]const u8) = .empty,
 
     text: std.ArrayList(u8) = .empty,
     data: std.ArrayList(u8) = .empty,

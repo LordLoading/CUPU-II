@@ -103,10 +103,5 @@ fn parseSymbol(directive: utils.Directive, str: []const u8) void {
             std.log.err(".global has no label", .{});
             std.process.exit(1);
         }
-    } else if (std.mem.eql(u8, directive.name, ".import")) {
-        main.o.imports.append(main.alloc, str) catch {
-            std.log.err("Error: failed to append import", .{});
-            std.process.exit(1);
-        };
     }
 }
