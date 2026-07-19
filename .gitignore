@@ -2,3 +2,4 @@
 /asm/zig-out
 /asm/assembleme.o
 /asm/out
+/lnk/out.bin
