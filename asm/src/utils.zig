@@ -192,7 +192,6 @@ const directiveTable: []const Directive = &[_]Directive{
     Directive.init(".text", DType.section),
     Directive.init(".data", DType.section),
     Directive.init(".bss", DType.section),
-    Directive.init(".import", DType.symbol),
     Directive.init(".segment", DType.symbol),
     Directive.init(".global", DType.symbol),
     Directive.init(".equ", DType.symbol),
