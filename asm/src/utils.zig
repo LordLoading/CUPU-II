@@ -3,6 +3,7 @@ const labelUtils = @import("parsers/labelUtils.zig");
 const parseDirective = @import("parsers/directiveParsers.zig").parse;
 const main = @import("main.zig");
 const parseInst = @import("parsers/instParser.zig").parse;
+const ObjStruct = @import("obj.zig").ObjStruct;
 
 pub fn parseLine(line: []const u8) void {
     const trimmed = std.mem.trim(u8, line, " \t");
@@ -25,12 +26,12 @@ pub fn parseLine(line: []const u8) void {
             const inst = parseInst(trimmed);
             if (inst.label) |label| {
                 if (std.mem.eql(u8, op.name, "lui")) {
-                    main.o.addRelocation(label, .uimm, .text, @divFloor(@as(u32, @truncate(main.o.text.items.len)), 2));
+                    ObjStruct.addRelocation(label, .uimm, .text, @divFloor(@as(u32, @truncate(main.text.items.len)), 2));
                 } else {
-                    main.o.addRelocation(label, .imm, .text, @divFloor(@as(u32, @truncate(main.o.text.items.len)), 2));
+                    ObjStruct.addRelocation(label, .imm, .text, @divFloor(@as(u32, @truncate(main.text.items.len)), 2));
                 }
             }
-            main.o.addInst(inst.bin);
+            ObjStruct.addInst(inst.bin);
         }
     }
 }
@@ -192,7 +193,6 @@ const directiveTable: []const Directive = &[_]Directive{
     Directive.init(".text", DType.section),
     Directive.init(".data", DType.section),
     Directive.init(".bss", DType.section),
-    Directive.init(".import", DType.symbol),
     Directive.init(".segment", DType.symbol),
     Directive.init(".global", DType.symbol),
     Directive.init(".equ", DType.symbol),

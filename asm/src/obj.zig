@@ -2,16 +2,14 @@ const std = @import("std");
 const main = @import("main.zig");
 
 pub const ObjStruct = struct {
-    fileName: []const u8 = "",
     segment: []const u8 = "",
-    imports: std.ArrayList([]const u8) = .empty,
 
-    text: std.ArrayList(u8) = .empty,
-    data: std.ArrayList(u8) = .empty,
-    bss: std.ArrayList(u8) = .empty,
+    text: []const u8 = "",
+    data: []const u8 = "",
+    bss: []const u8 = "",
 
-    labels: std.ArrayList(Label) = .empty,
-    relocations: std.ArrayList(Relocation) = .empty,
+    labels: []const Label = &[_]Label{},
+    relocations: []const Relocation = &[_]Relocation{},
 
     pub const section = enum { text, data, bss };
     pub const relocType = enum { val, imm, uimm };
@@ -30,23 +28,23 @@ pub const ObjStruct = struct {
         relocType: relocType,
     };
 
-    pub fn addInst(self: *ObjStruct, inst: u32) void {
+    pub fn addInst(inst: u32) void {
         const bytes: []const u8 = std.mem.asBytes(&inst);
         for (bytes) |byte| {
             const str = std.fmt.hex(byte);
-            self.text.appendSlice(main.alloc, &str) catch unreachable;
+            main.text.appendSlice(main.alloc, &str) catch unreachable;
         }
     }
 
-    pub fn addData(self: *ObjStruct, bytes: []const u8) void {
+    pub fn addData(bytes: []const u8) void {
         for (bytes) |byte| {
             const str = std.fmt.hex(byte);
-            self.data.appendSlice(main.alloc, &str) catch unreachable;
+            main.data.appendSlice(main.alloc, &str) catch unreachable;
         }
     }
 
-    pub fn addRelocation(self: *ObjStruct, label: []const u8, rT: relocType, s: section, offset: u32) void {
-        self.relocations.append(main.alloc, .{
+    pub fn addRelocation(label: []const u8, rT: relocType, s: section, offset: u32) void {
+        main.relocations.append(main.alloc, .{
             .offset = offset,
             .label = label,
             .section = s,
@@ -54,8 +52,8 @@ pub const ObjStruct = struct {
         }) catch unreachable;
     }
 
-    pub fn addLabel(self: *ObjStruct, name: []const u8, offset: u32, s: section, global: bool) void {
-        self.labels.append(main.alloc, .{
+    pub fn addLabel(name: []const u8, offset: u32, s: section, global: bool) void {
+        main.labels.append(main.alloc, .{
             .name = name,
             .offset = offset,
             .section = s,
