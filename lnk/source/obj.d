@@ -56,11 +56,11 @@ struct ObjFile {
     static ObjFile fromJSON(JSONValue obj) {
         ObjFile o;
         o.segment = obj["segment"].str;
-        o.text = obj["text"]["items"].str;
-        o.data = obj["data"]["items"].str;
-        o.bss = obj["bss"]["items"].str;
-        o.labels = obj["labels"]["items"].array.map!(a => Label.fromJSON(a)).array;
-        o.relocations = obj["relocations"]["items"].array.map!(a => Relocation.fromJSON(a)).array;
+        o.text = obj["text"].str;
+        o.data = obj["data"].str;
+        o.bss = obj["bss"].str;
+        o.labels = obj["labels"].array.map!(a => Label.fromJSON(a)).array;
+        o.relocations = obj["relocations"].array.map!(a => Relocation.fromJSON(a)).array;
         return o;
     }
 }

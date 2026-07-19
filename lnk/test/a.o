@@ -1,61 +1,46 @@
 {
   "segment": "main",
-  "text": {
-    "items": "0000203c00002170",
-    "capacity": 131
-  },
-  "data": {
-    "items": "7856341248656c6c6f2c20776f726c64210012",
-    "capacity": 131
-  },
-  "bss": {
-    "items": "",
-    "capacity": 0
-  },
-  "labels": {
-    "items": [
-      {
-        "name": "main",
-        "offset": 0,
-        "section": "text",
-        "global": true
-      },
-      {
-        "name": "word",
-        "offset": 0,
-        "section": "data",
-        "global": false
-      },
-      {
-        "name": "str",
-        "offset": 4,
-        "section": "data",
-        "global": false
-      },
-      {
-        "name": "byte",
-        "offset": 18,
-        "section": "data",
-        "global": false
-      }
-    ],
-    "capacity": 6
-  },
-  "relocations": {
-    "items": [
-      {
-        "offset": 0,
-        "label": "toast.word",
-        "section": "text",
-        "relocType": "uimm"
-      },
-      {
-        "offset": 4,
-        "label": "toast.word",
-        "section": "text",
-        "relocType": "imm"
-      }
-    ],
-    "capacity": 6
-  }
+  "text": "0000203c00002170",
+  "data": "7856341248656c6c6f2c20776f726c64210012",
+  "bss": "",
+  "labels": [
+    {
+      "name": "main",
+      "offset": 0,
+      "section": "text",
+      "global": true
+    },
+    {
+      "name": "word",
+      "offset": 0,
+      "section": "data",
+      "global": false
+    },
+    {
+      "name": "str",
+      "offset": 4,
+      "section": "data",
+      "global": false
+    },
+    {
+      "name": "byte",
+      "offset": 18,
+      "section": "data",
+      "global": false
+    }
+  ],
+  "relocations": [
+    {
+      "offset": 0,
+      "label": "toast.word",
+      "section": "text",
+      "relocType": "uimm"
+    },
+    {
+      "offset": 4,
+      "label": "toast.word",
+      "section": "text",
+      "relocType": "imm"
+    }
+  ]
 }
