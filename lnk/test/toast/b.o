@@ -1,10 +1,5 @@
 {
-  "fileName": "test/toast/b.asm",
   "segment": "toast",
-  "imports": {
-    "items": [],
-    "capacity": 0
-  },
   "text": {
     "items": "3412203c78562170",
     "capacity": 131

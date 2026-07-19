@@ -1,10 +1,5 @@
 {
-  "fileName": "test/a.asm",
   "segment": "main",
-  "imports": {
-    "items": [],
-    "capacity": 0
-  },
   "text": {
     "items": "0000203c00002170",
     "capacity": 131
