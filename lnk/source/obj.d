@@ -43,7 +43,6 @@ struct Relocation {
 }
 
 struct ObjFile {
-    string fileName;
     string segment;
     string text;
     string data;
@@ -56,7 +55,6 @@ struct ObjFile {
 
     static ObjFile fromJSON(JSONValue obj) {
         ObjFile o;
-        o.fileName = obj["fileName"].str;
         o.segment = obj["segment"].str;
         o.text = obj["text"]["items"].str;
         o.data = obj["data"]["items"].str;
