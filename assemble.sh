@@ -104,6 +104,6 @@ else
     exit 1
 fi
 
-link_files "$o_output_dir" "out.bin"
+link_files "$o_output_dir" "${o_output_dir}/out.bin"
 
 echo "Done."
