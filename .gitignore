@@ -3,3 +3,5 @@
 /asm/assembleme.o
 /asm/out
 /lnk/out.bin
+/out
+/out.bin
