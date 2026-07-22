@@ -1,4 +1,4 @@
-module Utils (readFileBS) where 
+module Utils (readFileBS) where
 
 import qualified Data.ByteString as B
 

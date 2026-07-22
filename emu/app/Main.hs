@@ -1,38 +1,41 @@
 module Main (main) where
 
-import qualified Data.ByteString as B
--- import Emu.Mem (newMemory, readByte, writeByte)
-import Lib
-import Numeric (showHex)
-import Utils (readFileBS)
 import Mem
+import Numeric (showHex)
+import qualified Data.ByteString as B
+import Regs
+import System.Environment (getArgs)
+import Text.Printf (printf)
+import Utils
 
 main :: IO ()
 main = do
-  someFunc
-  putStrLn "Hello, world!"
-  print (square 5)
-  print (Main.exp 2 5)
-  print (factorial 5)
-  bs <- readFileBS "test.bin"
-  putStrLn $ "test.bin (" ++ show (B.length bs) ++ " bytes):"
+  args <- getArgs
+  let path = case args of
+        (p : _) -> p
+        _ -> error "Usage: emu-exe <file>"
+  bs <- readFileBS path
+  putStrLn $ path ++ " (" ++ show (B.length bs) ++ " bytes):"
   mapM_ (\b -> putStr $ padHex (showHex (fromIntegral b :: Int) "")) (B.unpack bs)
   putStrLn ""
 
-  writeByte 100 255
-  writeHalf 200 0xabcd
-  test <- readBytes 100 103
+  Mem.writeByteString 0 bs
+
+  test <- Mem.readBytes 0 100
   mapM_ (\b -> putStr $ padHex (showHex (fromIntegral b :: Int) "")) test
 
-square :: Int -> Int
-square x = x * x
+  registers <- newRegisters
+  Regs.writeReg registers 0 0x1234
+  Regs.writeReg registers 1 0x5678
+  Regs.writeReg registers 2 0x9abc
+  Regs.writeReg registers 3 0xdef0
 
-exp :: Int -> Int -> Int
-exp a b = a ^ b
+  putStrLn ""
 
-factorial :: Int -> Int
-factorial 0 = 1
-factorial n = n * factorial (n - 1)
+  val0 <- Regs.readReg registers 0
+  putStrLn $ printf "%x" val0
 
 padHex :: String -> String
 padHex s = if length s == 1 then "0" ++ s else s
+      borderWithLabel (str "Hello!") $
+        (center (str "Left") <+> vBorder <+> center (str "Right"))

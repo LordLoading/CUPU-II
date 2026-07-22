@@ -21,7 +21,8 @@ description:         Please see the README on GitHub at <https://github.com/gith
 
 dependencies:
 - base >= 4.7 && < 5
-- bytestring 
+- bytestring
+- vector 
 - primitive
 
 ghc-options:
@@ -45,12 +46,14 @@ executables:
     other-modules:
       - Utils
       - Mem
+      - Regs
     ghc-options:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
     - emu
+    - brick
 
 tests:
   emu-test:
