@@ -1,8 +1,8 @@
 module Main (main) where
 
+import qualified Data.ByteString as B
 import Mem
 import Numeric (showHex)
-import qualified Data.ByteString as B
 import Regs
 import System.Environment (getArgs)
 import Text.Printf (printf)
@@ -37,5 +37,3 @@ main = do
 
 padHex :: String -> String
 padHex s = if length s == 1 then "0" ++ s else s
-      borderWithLabel (str "Hello!") $
-        (center (str "Left") <+> vBorder <+> center (str "Right"))
