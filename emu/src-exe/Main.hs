@@ -1,5 +1,7 @@
 module Main (main) where
 
+import Brick.Widgets.Core
+import Brick.Main.App
 import qualified Data.ByteString as B
 import Mem
 import Numeric (showHex)

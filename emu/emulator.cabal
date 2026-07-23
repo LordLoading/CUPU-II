@@ -71,6 +71,9 @@ executable emulator
                     , bytestring
                     , primitive 
                     , vector                                 
+                    , brick
+                    , vty
+                    , vty-crossplatform
 
 
     -- Directories containing source files.
