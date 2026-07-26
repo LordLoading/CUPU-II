@@ -103,5 +103,28 @@ fn parseSymbol(directive: utils.Directive, str: []const u8) void {
             std.log.err(".global has no label", .{});
             std.process.exit(1);
         }
+    } else if (std.mem.eql(u8, directive.name, ".equ")) {
+        const trimmed = std.mem.trim(u8, str, " \t");
+        if (trimmed.len == 0) {
+            std.log.err("Error: .equ directive has no value or label", .{});
+            std.process.exit(1);
+        }
+
+        const fwr = utils.FWR.init(trimmed) orelse {
+            std.log.err("Error: invalid directive: '{s}'", .{trimmed});
+            std.process.exit(1);
+        };
+
+        const vl = valUtils.parse(fwr.rest.?);
+
+        if (vl.label) |label| {
+            std.log.err("Error: .equ directive has no value, only label: '{s}'", .{label});
+            std.process.exit(1);
+        }
+
+        main.constants.append(main.alloc, .{
+            .name = fwr.firstWord,
+            .value = vl.val,
+        }) catch unreachable;
     }
 }
