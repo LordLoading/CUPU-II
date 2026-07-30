@@ -42,5 +42,11 @@
       "section": "text",
       "relocType": "imm"
     }
+  ],
+  "constants": [
+    {
+      "name": "pi",
+      "value": 1078530011
+    }
   ]
 }

@@ -42,6 +42,18 @@ struct Relocation {
     }
 }
 
+struct Constant {
+    string name;
+    long value;
+
+    static Constant fromJSON(JSONValue obj) {
+        Constant c;
+        c.name = obj["name"].str;
+        c.value = obj["value"].integer;
+        return c;
+    }
+}
+
 struct ObjFile {
     string segment;
     string text;
@@ -49,6 +61,7 @@ struct ObjFile {
     string bss;
     Label[] labels;
     Relocation[] relocations;
+    Constant[] constants;
     long textAddress = 0;
     long dataAddress = 0;
     long bssAddress = 0;
@@ -61,6 +74,7 @@ struct ObjFile {
         o.bss = obj["bss"].str;
         o.labels = obj["labels"].array.map!(a => Label.fromJSON(a)).array;
         o.relocations = obj["relocations"].array.map!(a => Relocation.fromJSON(a)).array;
+        o.constants = obj["constants"].array.map!(a => Constant.fromJSON(a)).array;
         return o;
     }
 }
