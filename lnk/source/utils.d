@@ -3,6 +3,9 @@ import app;
 import std.string;
 import std.stdio;
 import std.algorithm;
+import std.typecons;
+import core.stdc.stdlib;
+import std.json;
 
 ObjFile[string] fillSectionAddreses(ObjFile[string] o) {
     app.textLen += o["main"].text.length / 2;
@@ -65,42 +68,76 @@ ObjFile[string] applyRelocations(ObjFile[string] o) {
     foreach (ObjFile oFile; o) {
         foreach (i, Relocation reloc; oFile.relocations) {
             Label label;
+            bool foundLabel = false;
+
+            Constant constant;
+            bool foundConstant = false;
+
             string[] labelStr = split(reloc.label, ".");
             if (labelStr.length == 2) {
                 foreach (Label l; o[labelStr[0]].labels) {
                     if (l.name == labelStr[1]) {
                         label = l;
+                        foundLabel = true;
                         break;
                     }
                 }
+
+                if (!foundLabel) {
+                    foreach (Constant c; o[labelStr[0]].constants) {
+                        if (c.name == labelStr[1]) {
+                            constant = c;
+                            foundConstant = true;
+                            break;
+                        }
+                    }
+                }
             } else {
-                foreach (Label l; o[oFile.segment].labels) {
-                    if (l.name == labelStr[0]) {
+                foreach (Label l; o[labelStr[0]].labels) {
+                    if (l.name == labelStr[1]) {
                         label = l;
+                        foundLabel = true;
                         break;
+                    }
+                }
+
+                if (foundLabel) {
+                    foreach (Constant c; o[labelStr[0]].constants) {
+                        if (c.name == labelStr[1]) {
+                            constant = c;
+                            foundConstant = true;
+                            break;
+                        }
                     }
                 }
             }
 
+            ubyte[] bytes;
+
+            if (foundLabel) {
+                bytes = (cast(ubyte*)&label.address)[0 .. label.address.sizeof];
+            } else if (foundConstant) {
+                bytes = (cast(ubyte*)&constant.value)[0 .. constant.value.sizeof];
+            } else {
+                printf("error: label or constant not found: %s\n", toStringz(reloc.label));
+                exit(1);
+            }
+
             if (reloc.section == "text") {
                 if (reloc.relocType == RelocType.uimm) {
-                    ubyte[] bytes = (cast(ubyte*)&label.address)[0 .. label.address.sizeof];
                     string hex = bytes[2 .. 4].map!(b => format("%02X", b)).join;
                     o[oFile.segment].text = o[oFile.segment].text.replace(reloc.offset * 2, reloc.offset * 2 + 4, hex);
                 } else if (reloc.relocType == RelocType.imm) {
-                    ubyte[] bytes = (cast(ubyte*)&label.address)[0 .. label.address.sizeof];
                     string hex = bytes[0 .. 2].map!(b => format("%02X", b)).join;
                     o[oFile.segment].text = o[oFile.segment].text.replace(reloc.offset * 2, reloc.offset * 2 + 4, hex);
                 }
             } else if (reloc.section == "data") {
                 if (reloc.relocType == RelocType.val) {
-                    ubyte[] bytes = (cast(ubyte*)&label.address)[0 .. label.address.sizeof];
                     string hex = bytes[0 .. 4].map!(b => format("%02X", b)).join;
                     o[oFile.segment].text = o[oFile.segment].text.replace(reloc.offset * 2, reloc.offset * 2 + 8, hex);
                 }
             } else if (reloc.section == "bss") {
                 if (reloc.relocType == RelocType.val) {
-                    ubyte[] bytes = (cast(ubyte*)&label.address)[0 .. label.address.sizeof];
                     string hex = bytes[0 .. 2].map!(b => format("%02X", b)).join;
                     o[oFile.segment].text = o[oFile.segment].text.replace(reloc.offset * 2, reloc.offset * 2 + 8, hex);
                 }
