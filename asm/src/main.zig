@@ -13,6 +13,7 @@ pub var data: std.ArrayList(u8) = .empty;
 pub var bss: std.ArrayList(u8) = .empty;
 pub var labels: std.ArrayList(obj.ObjStruct.Label) = .empty;
 pub var relocations: std.ArrayList(obj.ObjStruct.Relocation) = .empty;
+pub var constants: std.ArrayList(obj.ObjStruct.Constant) = .empty;
 
 var fileName: []const u8 = "";
 
@@ -44,6 +45,7 @@ pub fn main(init: std.process.Init) !void {
     o.bss = bss.items;
     o.labels = labels.items;
     o.relocations = relocations.items;
+    o.constants = constants.items;
 
     const json = std.json.fmt(o, .{ .whitespace = .indent_2, .emit_null_optional_fields = true });
 

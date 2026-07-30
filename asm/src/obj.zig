@@ -10,6 +10,7 @@ pub const ObjStruct = struct {
 
     labels: []const Label = &[_]Label{},
     relocations: []const Relocation = &[_]Relocation{},
+    constants: []const Constant = &[_]Constant{},
 
     pub const section = enum { text, data, bss };
     pub const relocType = enum { val, imm, uimm };
@@ -26,6 +27,11 @@ pub const ObjStruct = struct {
         label: []const u8,
         section: section,
         relocType: relocType,
+    };
+
+    pub const Constant = struct {
+        name: []const u8,
+        value: u32,
     };
 
     pub fn addInst(inst: u32) void {
