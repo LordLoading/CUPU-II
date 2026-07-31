@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# for transparency, this script is written by ai because i'm a lazy bastard
 set -euo pipefail
 
 ASSEMBLER="asm/zig-out/bin/assembler"
