@@ -19,4 +19,4 @@ func WriteReg(reg uint32, value uint32) {
 var InstReg uint32
 var ProgramCounter uint32
 var AddressReg uint32
-var cond bool
+var Cond bool
