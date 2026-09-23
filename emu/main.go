@@ -1,17 +1,27 @@
 package main
 
-import "fmt"
-import "os"
-import "log"
-import "emulator/hardware"
+import (
+	"fmt"
+	"log"
+	"os"
+
+	"emulator/hardware"
+	"emulator/tui"
+
+	// tea "github.com/charmbracelet/bubbletea"
+)
 
 func main() {
 	data, err := os.ReadFile("./test.bin")
 	if err != nil {
 		log.Fatal(err)
+		os.Exit(1)
+	} else {
+		copy(hardware.Ram[0x0000:], data)
 	}
 
-	copy(hardware.Ram[0x0000:], data)
-
-	fmt.Printf("%08x", hardware.ReadWord(0x0000))
+	if err := tui.Run(); err != nil {
+		fmt.Println("Error running program:", err)
+		os.Exit(1)
+	}	
 }
