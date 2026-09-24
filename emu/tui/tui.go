@@ -8,15 +8,16 @@ import (
 	"emulator/hardware"
 	"emulator/hardware/cpu"
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-// const targetCyclesPerSecond uint32 = 1e+8
-const targetCyclesPerSecond uint32 = 1e+0
+var targetCyclesPerSecond uint32 = 1e+8
 
 type model struct {
 	regTable       table.Model
+	clockInput     textinput.Model
 	lastTime       time.Time
 	accumulator    float64
 	tickCount      int
@@ -49,9 +50,15 @@ func initialModel() model {
 		Bold(false)
 	regTable.SetStyles(regStyles)
 
+	ti := textinput.New()
+	ti.Placeholder = fmt.Sprintf("%d", targetCyclesPerSecond)
+	ti.CharLimit = 20
+	ti.Width = 20
+
 	now := time.Now()
 	return model{
 		regTable:       regTable,
+		clockInput:     ti,
 		lastTime:       now,
 		accumulator:    0,
 		tickCount:      0,
@@ -114,7 +121,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.regTable.Focus()
 			}
 			return m, nil
+		case "c":
+			if !m.clockInput.Focused() {
+				m.clockInput.Focus()
+				m.regTable.Blur()
+			}
+			return m, nil
+		case "enter":
+			if m.clockInput.Focused() {
+				val := 0
+				if _, err := fmt.Sscanf(m.clockInput.Value(), "%d", &val); err == nil && val > 0 {
+					targetCyclesPerSecond = uint32(val)
+				}
+				m.clockInput.Blur()
+				m.regTable.Focus()
+				return m, nil
+			}
 		}
+	}
+
+	if m.clockInput.Focused() {
+		var cmd tea.Cmd
+		m.clockInput, cmd = m.clockInput.Update(msg)
+		return m, cmd
 	}
 
 	var cmd tea.Cmd
@@ -149,8 +178,9 @@ func ramView() string {
 }
 
 func (m model) View() string {
-	info := fmt.Sprintf("Clock: %.0f Hz  |  PC: 0x%08x  |  IR: 0x%08x", m.measuredFreq, cpu.ProgramCounter, cpu.InstReg)
-	return lipgloss.JoinVertical(lipgloss.Top, info, lipgloss.JoinHorizontal(lipgloss.Top, m.regTable.View(), ramView()))
+	info := fmt.Sprintf("Clock: %.0f Hz  |  PC: 0x%08x  |  IR: 0x%08x  |  Press 'c' to set clock", m.measuredFreq, cpu.ProgramCounter, cpu.InstReg)
+	clockRow := lipgloss.JoinHorizontal(lipgloss.Top, m.clockInput.View())
+	return lipgloss.JoinVertical(lipgloss.Top, info, clockRow, lipgloss.JoinHorizontal(lipgloss.Top, m.regTable.View(), ramView()))
 }
 
 func Run() error {
