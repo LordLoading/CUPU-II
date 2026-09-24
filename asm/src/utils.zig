@@ -110,12 +110,12 @@ const opTable: []const Op = &[_]Op{
     Op.init("lt", 'R', "ab", 0x00, 0x024),
     Op.init("lte", 'R', "ab", 0x00, 0x025),
     //memory access
-    Op.init("lw", 'R', "tai", 0x00, 0x030),
-    Op.init("lh", 'R', "tai", 0x00, 0x031),
-    Op.init("lb", 'R', "tai", 0x00, 0x032),
-    Op.init("sw", 'R', "ait", 0x00, 0x033),
-    Op.init("sh", 'R', "ait", 0x00, 0x034),
-    Op.init("sb", 'R', "ait", 0x00, 0x035),
+    Op.init("lw", 'R', "ta", 0x00, 0x030),
+    Op.init("lh", 'R', "ta", 0x00, 0x031),
+    Op.init("lb", 'R', "ta", 0x00, 0x032),
+    Op.init("sw", 'R', "at", 0x00, 0x033),
+    Op.init("sh", 'R', "at", 0x00, 0x034),
+    Op.init("sb", 'R', "at", 0x00, 0x035),
     //idk
     Op.init("hlt", 'R', "", 0x00, 0x040),
     //immediate alu
