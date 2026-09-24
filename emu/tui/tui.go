@@ -12,7 +12,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const targetCyclesPerSecond uint32 = 10e+7
+// const targetCyclesPerSecond uint32 = 1e+8
+const targetCyclesPerSecond uint32 = 1e+0
 
 type model struct {
 	regTable       table.Model

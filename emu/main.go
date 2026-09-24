@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	data, err := os.ReadFile("./test.bin")
+	data, err := os.ReadFile("./out.bin")
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(1)
