@@ -37,17 +37,17 @@ func Tick() bool {
 				case 0x25:
 					Cond = ReadReg(A) <= ReadReg(B)
 				case 0x30:
-					WriteReg(Target, hardware.ReadWord(ReadReg(A)+Imm))
+					WriteReg(Target, hardware.ReadWord(ReadReg(A)))
 				case 0x31:
-					WriteReg(Target, uint32(hardware.ReadHalfWord(ReadReg(A)+Imm)))
+					WriteReg(Target, uint32(hardware.ReadHalfWord(ReadReg(A))))
 				case 0x32:
-					WriteReg(Target, uint32(hardware.ReadByte(ReadReg(A)+Imm)))
+					WriteReg(Target, uint32(hardware.ReadByte(ReadReg(A))))
 				case 0x33:
-					hardware.WriteWord(ReadReg(A)+Imm, ReadReg(Target))
+					hardware.WriteWord(ReadReg(A), ReadReg(Target))
 				case 0x34:
-					hardware.WriteHalfWord(ReadReg(A)+Imm, uint16(ReadReg(Target)))
+					hardware.WriteHalfWord(ReadReg(A), uint16(ReadReg(Target)))
 				case 0x35:
-					hardware.WriteByte(ReadReg(A)+Imm, byte(ReadReg(Target)))
+					hardware.WriteByte(ReadReg(A), byte(ReadReg(Target)))
 				case 0x40:
 					return false
 				}
