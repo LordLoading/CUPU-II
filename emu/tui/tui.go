@@ -7,13 +7,14 @@ import (
 
 	"emulator/hardware"
 	"emulator/hardware/cpu"
+	"emulator/hardware/mmio"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-var targetCyclesPerSecond uint32 = 1e+8
+var targetCyclesPerSecond uint32 = 1e+2
 
 type model struct {
 	regTable       table.Model
@@ -93,6 +94,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			running = cpu.Tick()
 			m.accumulator -= step
 			m.tickCount++
+
+			mmio.Tick()
 			if !running {
 				break
 			}
