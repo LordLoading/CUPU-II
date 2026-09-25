@@ -2,7 +2,7 @@ package timestamp
 
 import "time"
 
-const BaseAddr uint32 = 0x20000002
+const BaseAddr uint32 = 0x20000000
 const Size uint32 = 4
 
 func TimestampReadByte(addr uint32) byte {

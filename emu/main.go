@@ -1,14 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 
 	"emulator/hardware"
 	"emulator/tui"
 
-	// tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {
@@ -20,8 +19,7 @@ func main() {
 		copy(hardware.Ram[0x0000:], data)
 	}
 
-	if err := tui.Run(); err != nil {
-		fmt.Println("Error running program:", err)
-		os.Exit(1)
-	}	
+	m := tui.NewModel()
+	p := tea.NewProgram(m)
+	p.Run()
 }
