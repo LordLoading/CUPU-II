@@ -2,10 +2,13 @@
 
 All values are computed with exact integer arithmetic at PREC bits.
 
-  TWO_OVER_PI(k)  bit k of 2/pi, weight 2^-k, k = 1..200  (Payne-Hanek reduction)
-  PI_HALF(j)      bit j of pi/2,  weight 2^-j, j = 0..64  (quarter turns -> radians)
+  TWO_OVER_PI(k)  bit k of 2/pi, weight 2^-k, k = 1..200 used  (Payne-Hanek reduction)
+  PI_HALF(j)      bit j of pi/2,  weight 2^-j, j = 0..64 used   (quarter turns -> radians)
   CORDIC_K        prod 1/sqrt(1 + 2^-2i), i = 0..61, Q3.62
-  ATAN_TAB(i)     atan(2^-i), i = 0..20, Q3.62 (above 20, atan(2^-i) == 2^-i at 62 bits)
+  ATAN_TAB(i)     atan(2^-i), i = 0..20 used, Q3.62 (above 20, atan(2^-i) == 2^-i at 62 bits)
+
+The ROMs are 0-based with power-of-two sizes: GHDL 4.1 synthesis (what the TT flow uses)
+mis-indexes constant arrays that do not start at 0.
 """
 
 from math import isqrt
@@ -14,7 +17,7 @@ PREC = 400
 ONE = 1 << PREC
 FRAC = 62
 ITER = 62
-ATAN_N = 21
+ATAN_N = 32
 
 
 def atan_inv(n):
@@ -52,7 +55,7 @@ def main():
     cordic_k = isqrt(k2 * ONE)
 
     atans = [PI // 4] + [atan_inv(1 << i) for i in range(1, ATAN_N)]
-    for i in range(ATAN_N, ITER):
+    for i in range(21, ITER):
         assert q62(atan_inv(1 << i)) == 1 << (FRAC - i), i
 
     out = []
@@ -63,8 +66,8 @@ def main():
     w("use ieee.numeric_std.all;")
     w("")
     w("package cupu_fpu_pkg is")
-    w(f'  constant TWO_OVER_PI : std_logic_vector(1 to 200) := "{bits(two_over_pi, 1, 200)}";')
-    w(f'  constant PI_HALF     : std_logic_vector(0 to 64) := "{bits(pi_half, 0, 64)}";')
+    w(f'  constant TWO_OVER_PI : std_logic_vector(0 to 255) := "{bits(two_over_pi, 0, 255)}";')
+    w(f'  constant PI_HALF     : std_logic_vector(0 to 127) := "{bits(pi_half, 0, 127)}";')
     w(f'  constant CORDIC_K    : unsigned(65 downto 0) := "{q62(cordic_k):066b}";')
     w(f"  type atan_tab_t is array (0 to {ATAN_N - 1}) of unsigned(65 downto 0);")
     w("  constant ATAN_TAB : atan_tab_t := (")
