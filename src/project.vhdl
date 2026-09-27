@@ -144,6 +144,9 @@ architecture rtl of cupu_fpu is
   signal shifted : unsigned(65 downto 0);  -- CORDIC: X or Y >>> i
   signal atan_i  : unsigned(65 downto 0);
 
+  -- which CORDIC output F_TRIG_OUT / F_TAN1 convert: '1' = Y (sin r), '0' = X (cos r)
+  signal is_sin, is_cos, is_tan, in_out, trig_use_y : std_logic;
+
   function unpack_e(e : unsigned(7 downto 0)) return exp_t is
   begin
     if e = 0 then
@@ -174,6 +177,16 @@ begin
   sb     <= b(31);
   sbe    <= b(31) xor '1' when opn = OP_FSUB else b(31);
 
+  -- plain std_logic on purpose: GHDL 4.1 synthesis got the boolean version of this wrong
+  is_sin <= '1' when opn = OP_SIN else '0';
+  is_cos <= '1' when opn = OP_COS else '0';
+  is_tan <= '1' when opn = OP_TAN else '0';
+  in_out <= '1' when state = F_TRIG_OUT else '0';
+  -- sin: q even Y, odd X; cos: q even X, odd Y
+  -- tan: denominator (F_TRIG_OUT) q even X, odd Y; numerator (F_TAN1) the other one
+  trig_use_y <= (is_sin and not quad(0)) or (is_cos and quad(0)) or
+                (is_tan and not (in_out xor quad(0)));
+
   shifted <= unsigned(shift_right(signed(Y), to_integer(cnt(5 downto 0)))) when state = F_CA else
              unsigned(shift_right(signed(X), to_integer(cnt(5 downto 0))));
 
@@ -191,7 +204,7 @@ begin
   ---------------------------------------------------------------------------
   -- shared adder operands
   ---------------------------------------------------------------------------
-  process (state, opn, a, R, X, Y, Z, W, ma, mb, stk, effsub, cnt, shifted, atan_i, quad)
+  process (state, opn, a, R, X, Y, Z, W, ma, mb, stk, effsub, cnt, shifted, atan_i, trig_use_y)
     variable v : unsigned(65 downto 0);
   begin
     add_x   <= (others => '0');
@@ -252,8 +265,7 @@ begin
       when F_TRIG_OUT | F_TAN1 =>
         -- |value| to convert: sin/cos result, or tan's denominator (F_TRIG_OUT)
         -- and numerator (F_TAN1). X = cos r, Y = sin r.
-        if (opn = OP_SIN and quad(0) = '0') or (opn = OP_COS and quad(0) = '1') or
-           (opn = OP_TAN and (state = F_TRIG_OUT) = (quad(0) = '1')) then
+        if trig_use_y = '1' then
           v := Y;
         else
           v := X;
