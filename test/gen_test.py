@@ -1,16 +1,31 @@
 """Generate a CUPU-II test program and the results a correct CPU must store.
 
-Every test leaves one word in the result area at 0x100000; the program then writes
-0xA5 to gpio and halts. tb.vhd dumps the result area to results.txt and
-check.py compares it with expected.txt.
+Every test leaves one word in the result area at 0x100000. At the end the program
+writes 0xA5 to gpio, divides by zero (which must halt the CPU) and would write 0xEE
+to gpio if it kept running.
+
+Keyboard protocol the testbench has to follow:
+  - right after reset, strobe KEY1 (ui_in(7) rising edge, character on ui_in(6:0))
+  - when gpio reads WAIT_KEY, the program is blocked on the keyboard: strobe KEY2
+
+expected.txt has one line per result: the value, and -1 for an exact compare or the
+FPU op number (fpu_ref.matches decides what counts as equal).
 """
 
+import os
 import random
 import sys
 
+sys.path.insert(0, os.path.dirname(__file__))
+from fpu_ref import f2b, fpu  # noqa: E402
+
 M = 0xFFFFFFFF
 RES = 0x100000
-KBD = 0x5A  # tb.vhd drives ui_in with this
+KEY1 = 0x5A      # 'Z'
+KEY2 = 0x71      # 'q'
+WAIT_KEY = 0x3C
+DONE = 0xA5
+FAIL = 0xEE
 
 
 def s32(x):
@@ -44,8 +59,6 @@ R_OPS = {
     0x0B: lambda a, b: (s32(a) * s32(b)) >> 32,
     0x0C: lambda a, b: int(a + b + 1 > M),
     0x0D: lambda a, b: int(a <= b),
-    0x0E: lambda a, b: 0,  # fpu ops are not implemented in hardware
-    0x14: lambda a, b: 0,
 }
 CMP_OPS = {
     0x20: lambda a, b: a == b,
@@ -71,6 +84,8 @@ I_OPS = {
     0x1D: lambda a, i: a & i,
     0x1E: lambda a, i: a ^ i,
 }
+FLOATS = [0x00000000, 0x80000000, 0x3F800000, 0xBF800000, 0x7F800000, 0xFF800000, 0x7FC00000,
+          0x00000001, 0x007FFFFF, 0x7F7FFFFF, 0x40490FDB, 0x3FC90FDB, 0x4F000000, 0xCF000000]
 
 
 def R(t, a, b, fn, cond=0):
@@ -96,33 +111,45 @@ class Prog:
         self.emit(I(0x0F, r, 0, (v >> 16) & 0xFFFF))  # lui
         self.emit(I(0x1C, r, r, v & 0xFFFF))          # uori
 
-    def store_result(self, r, value):
+    def store_result(self, r, value, kind=-1):
         self.emit(R(r, 10, 0, 0x33))   # sw r -> mem[r10]
         self.emit(I(0x08, 10, 10, 4))  # addi r10, r10, 4
-        self.expected.append(value & M)
+        self.expected.append((value & M, kind))
+
+    def gpio(self, v):
+        self.li(20, 0x20000008)
+        self.li(21, v)
+        self.emit(R(21, 20, 0, 0x35))  # sb
 
 
-def build(seed):
+def build(seed=1, quick=False):
+    """quick: a small subset for slow (gate level) simulation."""
     rnd = random.Random(seed)
     p = Prog()
     p.li(10, RES)
 
+    # registers are zero after reset
+    for r in (1, 29, 31):
+        p.store_result(r, 0)
+
     edge = [0, 1, 2, 31, 32, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFF, 0xFFFFFFFE, 12345, 0xDEADBEEF]
+    if quick:
+        edge = [1, 31, 0x80000000, 0xFFFFFFFF, 0xDEADBEEF]
     pairs = [(a, b) for a in edge for b in edge[:6]]
-    pairs += [(rnd.getrandbits(32), rnd.getrandbits(32)) for _ in range(6)]
-    pairs += [(rnd.getrandbits(32), rnd.randrange(40)) for _ in range(4)]
+    pairs += [(rnd.getrandbits(32), rnd.getrandbits(32)) for _ in range(2 if quick else 6)]
+    pairs += [(rnd.getrandbits(32), rnd.randrange(40)) for _ in range(2 if quick else 4)]
 
     for fn, f in R_OPS.items():
         for a, b in pairs:
             if fn in (0x03, 0x0A) and b == 0:
-                continue  # division by zero is undefined
+                continue  # division by zero halts, tested at the end
             p.li(1, a)
             p.li(2, b)
             p.emit(R(3, 1, 2, fn))
             p.store_result(3, f(a, b))
 
     for fn, f in CMP_OPS.items():
-        for a, b in pairs[:20]:
+        for a, b in pairs[: 6 if quick else 20]:
             p.li(1, a)
             p.li(2, b)
             p.emit(I(0x08, 3, 0, 7))              # addi r3, $z, 7
@@ -130,7 +157,7 @@ def build(seed):
             p.emit(I(0x08, 3, 0, 1, cond=1))      # if flag: addi r3, $z, 1
             p.store_result(3, 1 if f(a, b) else 7)
 
-    imms = [0, 1, 3, 0x7FFF, 0x8000, 0xFFFF, 0x1234, 0xFFFE]
+    imms = [1, 0x8000, 0xFFFF, 0x1234] if quick else [0, 1, 3, 0x7FFF, 0x8000, 0xFFFF, 0x1234, 0xFFFE]
     for opc, f in I_OPS.items():
         for a in edge[:8] + [rnd.getrandbits(32)]:
             for imm in imms:
@@ -139,6 +166,24 @@ def build(seed):
                 p.li(1, a)
                 p.emit(I(opc, 3, 1, imm))
                 p.store_result(3, f(a, imm))
+
+    # floating point, func 0x0E..0x17
+    fl = FLOATS[:6] if quick else FLOATS
+    for op in range(10):
+        cases = [(a, b) for a in fl for b in fl[:3 if quick else 5]]
+        for _ in range(4 if quick else 25):
+            if op <= 1:
+                a = rnd.choice([rnd.getrandbits(32), rnd.randrange(-100, 100) & M, f2b(rnd.randrange(-50, 50) + 0.5)])
+            elif op >= 7:
+                a = f2b(rnd.uniform(-1e4, 1e4)) if rnd.random() < 0.7 else rnd.getrandbits(32)
+            else:
+                a = rnd.getrandbits(32) if rnd.random() < 0.5 else f2b(rnd.uniform(-100, 100))
+            cases.append((a, f2b(rnd.uniform(-100, 100)) if rnd.random() < 0.5 else rnd.getrandbits(32)))
+        for a, b in cases:
+            p.li(1, a)
+            p.li(2, b)
+            p.emit(R(3, 1, 2, 0x0E + op))
+            p.store_result(3, fpu(op, a, b), op)
 
     # lui alone
     p.emit(I(0x0F, 3, 0, 0xBEEF))
@@ -201,33 +246,49 @@ def build(seed):
     p.emit(R(3, 20, 0, 0x30))
     p.store_result(3, 0x11ABF0AB)
 
-    # mmio: keyboard, gpio readback, seconds counter (0 in a short sim)
+    # timestamp: settable, reads back (no full second passes in simulation)
+    p.li(20, 0x20000000)
+    p.li(21, 1700000000)
+    p.emit(R(21, 20, 0, 0x33))
+    p.emit(R(3, 20, 0, 0x30))
+    p.store_result(3, 1700000000)
+    p.emit(I(0x08, 22, 20, 3))
+    p.emit(R(3, 22, 0, 0x32))                      # lb, top byte
+    p.store_result(3, 1700000000 >> 24)
+
+    # keyboard: KEY1 was strobed long ago and is waiting
     p.li(20, 0x20000004)
     p.emit(R(3, 20, 0, 0x32))
-    p.store_result(3, KBD)
-    p.li(20, 0x20000008)
-    p.li(21, 0x3C)
-    p.emit(R(21, 20, 0, 0x35))
-    p.emit(R(3, 20, 0, 0x32))
-    p.store_result(3, 0x3C)
-    p.li(20, 0x20000000)
-    p.emit(R(3, 20, 0, 0x30))
-    p.store_result(3, 0)
+    p.store_result(3, KEY1)
 
-    # done: gpio = 0xA5, halt
-    p.li(20, 0x20000008)
-    p.li(21, 0xA5)
-    p.emit(R(21, 20, 0, 0x35))
+    # gpio readback, which also tells the testbench to send KEY2
+    p.gpio(WAIT_KEY)
+    p.emit(R(3, 20, 0, 0x32))
+    p.store_result(3, WAIT_KEY)
+
+    # this read blocks until KEY2 arrives
+    p.li(20, 0x20000004)
+    p.emit(R(3, 20, 0, 0x30))                      # lw covering the keyboard byte
+    p.store_result(3, KEY2)
+
+    # done; divide by zero must halt
+    p.gpio(DONE)
+    p.li(1, 7)
+    p.emit(R(3, 1, 0, 0x03))
+    p.gpio(FAIL)
     p.emit(R(0, 0, 0, 0x40))
-    p.emit(I(0x08, 30, 0, 1))        # must never run
     return p
 
 
-if __name__ == "__main__":
-    p = build(int(sys.argv[1]) if len(sys.argv) > 1 else 1)
+def write_files(p, where="."):
     assert 4 * len(p.words) < RES, "program overlaps result area"
-    with open("prog.hex", "w") as f:
+    with open(os.path.join(where, "prog.hex"), "w") as f:
         f.writelines(f"{w:08x}\n" for w in p.words)
-    with open("expected.txt", "w") as f:
-        f.writelines(f"{w:08x}\n" for w in p.expected)
-    print(f"{len(p.words)} instructions, {len(p.expected)} results")
+    with open(os.path.join(where, "expected.txt"), "w") as f:
+        f.writelines(f"{v:08x} {k}\n" for v, k in p.expected)
+
+
+if __name__ == "__main__":
+    prog = build(int(sys.argv[1]) if len(sys.argv) > 1 else 1, quick="quick" in sys.argv)
+    write_files(prog)
+    print(f"{len(prog.words)} instructions, {len(prog.expected)} results")

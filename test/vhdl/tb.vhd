@@ -1,6 +1,6 @@
 -- Testbench: TT top level + two SPI PSRAM models (mode 0, commands 0x02/0x03).
--- Loads prog.hex into RAM A at 0, releases reset, waits for gpio = 0xA5 and
--- dumps G_NRES words from 0x100000 to results.txt.
+-- Loads prog.hex into RAM A at 0, releases reset, plays the keyboard protocol from
+-- gen_test.py, waits for gpio = 0xA5 and dumps G_NRES words from 0x100000 to results.txt.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -20,7 +20,7 @@ architecture sim of tb is
 
   signal clk     : std_logic := '0';
   signal rst_n   : std_logic := '0';
-  signal ui_in   : std_logic_vector(7 downto 0) := x"5A";
+  signal ui_in   : std_logic_vector(7 downto 0) := x"00";
   signal uo_out  : std_logic_vector(7 downto 0);
   signal uio_in  : std_logic_vector(7 downto 0) := (others => '0');
   signal uio_out : std_logic_vector(7 downto 0);
@@ -100,9 +100,22 @@ begin
 
     wait for 10 * T_CLK;
     rst_n <= '1';
+
+    -- keyboard protocol, see gen_test.py
+    ui_in <= x"5A";
+    wait for 1 us;
+    ui_in <= x"DA";                                -- strobe 'Z'
+    wait until uo_out = x"3C" for G_TIMEOUT_MS * 1 ms;
+    assert uo_out = x"3C" report "timeout waiting for the keyboard read" severity failure;
+    wait for 200 us;                               -- the CPU has to sit blocked meanwhile
+    ui_in <= x"71";
+    wait for 1 us;
+    ui_in <= x"F1";                                -- strobe 'q'
+
     wait until uo_out = x"A5" for G_TIMEOUT_MS * 1 ms;
     assert uo_out = x"A5" report "timeout: program never finished" severity failure;
-    wait for 20 us;
+    wait for 100 us;
+    assert uo_out = x"A5" report "CPU kept running after dividing by zero" severity failure;
 
     file_open(f, "results.txt", write_mode);
     for i in 0 to G_NRES - 1 loop

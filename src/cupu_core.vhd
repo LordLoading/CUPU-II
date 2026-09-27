@@ -1,10 +1,11 @@
 -- CUPU-II "Stollentroll" core, multi-cycle implementation of isa.txt.
 --
 -- Everything shares one 33-bit adder and one register-file read port; mul/div are
--- iterative (32 cycles) and shifts go one bit per cycle. Fetches over SPI take ~70
+-- iterative (32 cycles) and shifts go one bit per cycle. Fetches over SPI take ~130
 -- cycles anyway, so the extra cycles are cheap and the area savings are not.
+-- Floating point ops (func 0x0E..0x17) run in cupu_fpu.
 --
--- Deviations from the Go emulator are listed in tt/docs/info.md.
+-- Differences from the Go emulator are listed in docs/info.md.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -38,7 +39,8 @@ architecture rtl of cupu_core is
 
   type state_t is (
     S_FETCH, S_RA, S_RB, S_EXEC, S_MEM, S_WB, S_WBJ, S_NEXT, S_JRAL,
-    S_MUL, S_DIV_NA, S_DIV_NB, S_DIV, S_DIV_FQ, S_DIV_FR, S_SHIFT, S_HALT
+    S_MUL, S_DIV_NA, S_DIV_NB, S_DIV, S_DIV_FQ, S_DIV_FR, S_SHIFT, S_FPU,
+    S_CLEAR, S_HALT
   );
 
   type op_t is (
@@ -81,9 +83,21 @@ architecture rtl of cupu_core is
   signal acc_done  : std_logic;
   signal acc_rdata : word;
 
+  -- fpu
+  signal fpu_start : std_logic;
+  signal fpu_op    : unsigned(4 downto 0);
+  signal fpu_res   : std_logic_vector(31 downto 0);
+  signal fpu_done  : std_logic;
+
   -- mmio devices
   signal gpio      : std_logic_vector(7 downto 0);
   signal seconds   : word;
+  signal ts_we     : std_logic;
+  signal kbd_sync  : std_logic_vector(2 downto 0);
+  signal kbd_data  : std_logic_vector(6 downto 0);
+  signal kbd_valid : std_logic;
+  signal kbd_hit   : std_logic;  -- current load reads the keyboard byte
+  signal kbd_take  : std_logic;
   signal prescale  : natural range 0 to G_CLK_HZ - 1;
 begin
   f_cond <= ir(31);
@@ -230,6 +244,23 @@ begin
   end process;
 
   ---------------------------------------------------------------------------
+  -- floating point
+  ---------------------------------------------------------------------------
+  fpu_op <= f_fn(4 downto 0) - 16#0E#;
+
+  fpu : entity work.cupu_fpu
+    port map (
+      clk   => clk,
+      rst   => rst,
+      start => fpu_start,
+      op    => fpu_op(3 downto 0),
+      a     => std_logic_vector(opa),
+      b     => std_logic_vector(opb),
+      res   => fpu_res,
+      done  => fpu_done
+    );
+
+  ---------------------------------------------------------------------------
   -- memory access: external SPI RAM below 0x01000000, mmio above
   ---------------------------------------------------------------------------
   acc_addr <= pc when state = S_FETCH else opa;
@@ -253,10 +284,28 @@ begin
   mem_size  <= acc_size;
   mem_addr  <= std_logic_vector(acc_addr(23 downto 0));
   mem_wdata <= std_logic_vector(opb);
-  acc_done  <= mem_done when mmio_sel = '0' else '1';
+  -- a load of the keyboard byte blocks until a key is there, like the emulator's channel
+  acc_done  <= mem_done when mmio_sel = '0' else not (kbd_hit and not kbd_valid);
+  kbd_take  <= '1' when state = S_MEM and op = OP_LOAD and kbd_hit = '1' and kbd_valid = '1' else '0';
+
+  process (acc_addr, acc_size, state, op)
+    variable off, n : natural;
+  begin
+    off := to_integer(acc_addr(3 downto 0));
+    case acc_size is
+      when "00"   => n := 1;
+      when "01"   => n := 2;
+      when others => n := 4;
+    end case;
+    kbd_hit <= '0';
+    if acc_addr(31 downto 4) = MMIO_BASE and off <= 4 and off + n > 4
+       and not (state = S_MEM and op = OP_STORE) then
+      kbd_hit <= '1';
+    end if;
+  end process;
 
   -- mmio is read byte by byte like the emulator, so unaligned accesses behave the same
-  process (acc_addr, acc_size, seconds, kbd_in, gpio)
+  process (acc_addr, acc_size, seconds, kbd_data, gpio)
     variable off : unsigned(4 downto 0);
     variable b   : std_logic_vector(7 downto 0);
     variable r   : std_logic_vector(31 downto 0);
@@ -271,7 +320,7 @@ begin
           when 1      => b := std_logic_vector(seconds(15 downto 8));
           when 2      => b := std_logic_vector(seconds(23 downto 16));
           when 3      => b := std_logic_vector(seconds(31 downto 24));
-          when 4      => b := kbd_in;
+          when 4      => b := '0' & kbd_data;
           when 8      => b := gpio;
           when others => null;
         end case;
@@ -292,14 +341,20 @@ begin
   halted   <= '1' when state = S_HALT else '0';
 
   ---------------------------------------------------------------------------
-  -- seconds counter (emulator returns unix time; hardware counts from reset)
+  -- seconds counter: counts from reset; a word store to 0x20000000 sets it
+  -- (e.g. to unix time, which is what the emulator returns)
   ---------------------------------------------------------------------------
+  ts_we <= '1' when state = S_MEM and op = OP_STORE and acc_addr = x"20000000" and acc_size = "10" else '0';
+
   process (clk)
   begin
     if rising_edge(clk) then
       if rst = '1' then
         prescale <= 0;
         seconds  <= (others => '0');
+      elsif ts_we = '1' then
+        prescale <= 0;
+        seconds  <= opb;
       elsif prescale = G_CLK_HZ - 1 then
         prescale <= 0;
         seconds  <= seconds + 1;
@@ -310,12 +365,36 @@ begin
   end process;
 
   ---------------------------------------------------------------------------
-  -- register file write (not reset, to save ~1000 cells; see docs)
+  -- keyboard: a rising edge on ui_in(7) latches the 7-bit character on ui_in(6:0)
   ---------------------------------------------------------------------------
   process (clk)
   begin
     if rising_edge(clk) then
-      if (state = S_WB or state = S_WBJ) and f_t /= 0 then
+      if rst = '1' then
+        kbd_sync  <= (others => '0');
+        kbd_valid <= '0';
+        kbd_data  <= (others => '0');
+      else
+        kbd_sync <= kbd_sync(1 downto 0) & kbd_in(7);
+        if kbd_sync(1) = '1' and kbd_sync(2) = '0' then
+          kbd_data  <= kbd_in(6 downto 0);
+          kbd_valid <= '1';
+        elsif kbd_take = '1' then
+          kbd_valid <= '0';
+        end if;
+      end if;
+    end if;
+  end process;
+
+  ---------------------------------------------------------------------------
+  -- register file write; S_CLEAR zeroes it after reset, one register per cycle
+  ---------------------------------------------------------------------------
+  process (clk)
+  begin
+    if rising_edge(clk) then
+      if state = S_CLEAR then
+        regs(to_integer(cnt)) <= (others => '0');
+      elsif (state = S_WB or state = S_WBJ) and f_t /= 0 then
         regs(to_integer(f_t)) <= wb_val;
       end if;
     end if;
@@ -329,8 +408,10 @@ begin
     variable signd  : std_logic;
   begin
     if rising_edge(clk) then
+      fpu_start <= '0';
       if rst = '1' then
-        state <= S_FETCH;
+        state <= S_CLEAR;
+        cnt   <= (others => '0');
         pc    <= (others => '0');
         flag  <= '0';
         gpio  <= (others => '0');
@@ -373,7 +454,9 @@ begin
                 when OP_NOT  => acc <= not opa;
                 when OP_OVRF => acc <= (0 => add_s(32), others => '0');
                 when OP_UNRF => acc <= (0 => (not ge) or eq, others => '0');
-                when OP_FPU  => acc <= (others => '0');
+                when OP_FPU =>
+                  fpu_start <= '1';
+                  state     <= S_FPU;
                 when OP_LUI  => acc <= opb(15 downto 0) & x"0000";
 
                 when OP_CMP =>
@@ -393,7 +476,11 @@ begin
                   state <= S_MUL;
 
                 when OP_DIV | OP_DIVU | OP_REM =>
-                  state <= S_DIV_NA;
+                  if opb = 0 then
+                    state <= S_HALT;  -- the emulator panics
+                  else
+                    state <= S_DIV_NA;
+                  end if;
 
                 when OP_SHL | OP_SHR =>
                   if opb(31 downto 5) /= 0 then
@@ -509,6 +596,18 @@ begin
 
           when S_WBJ =>
             state <= S_FETCH;
+
+          when S_FPU =>
+            if fpu_done = '1' then
+              acc   <= unsigned(fpu_res);
+              state <= S_WB;
+            end if;
+
+          when S_CLEAR =>
+            cnt <= cnt + 1;
+            if cnt = 31 then
+              state <= S_FETCH;
+            end if;
 
           when S_HALT =>
             null;
