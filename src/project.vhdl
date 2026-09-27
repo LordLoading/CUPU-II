@@ -882,8 +882,7 @@ entity cupu_core is
     mem_done  : in  std_logic;
     -- mmio
     kbd_in    : in  std_logic_vector(7 downto 0);
-    gpio_out  : out std_logic_vector(7 downto 0);
-    halted    : out std_logic
+    gpio_out  : out std_logic_vector(7 downto 0)
   );
 end entity;
 
@@ -1102,7 +1101,7 @@ begin
   ---------------------------------------------------------------------------
   fpu_op <= f_fn(4 downto 0) - 16#0E#;
 
-  fpu : entity work.cupu_fpu
+  u_fpu : entity work.cupu_fpu
     port map (
       clk   => clk,
       rst   => rst,
@@ -1192,7 +1191,6 @@ begin
   acc_rdata <= unsigned(mem_rdata) when mmio_sel = '0' else mmio_rd;
 
   gpio_out <= gpio;
-  halted   <= '1' when state = S_HALT else '0';
 
   ---------------------------------------------------------------------------
   -- seconds counter: counts from reset; a word store to 0x20000000 sets it
@@ -1513,7 +1511,7 @@ architecture rtl of tt_um_zonlykroks_cupu is
 begin
   rst <= not rst_n;
 
-  core : entity work.cupu_core
+  u_core : entity work.cupu_core
     generic map (G_CLK_HZ => 25_000_000)
     port map (
       clk       => clk,
@@ -1526,11 +1524,10 @@ begin
       mem_rdata => mem_rdata,
       mem_done  => mem_done,
       kbd_in    => ui_in,
-      gpio_out  => uo_out,
-      halted    => open
+      gpio_out  => uo_out
     );
 
-  spi : entity work.cupu_spi
+  u_spi : entity work.cupu_spi
     port map (
       clk   => clk,
       rst   => rst,
