@@ -23,7 +23,7 @@ of it the SPI fetch (~190k instructions/s at 25 MHz).
 The FPU implements all ten float ops (`itof`, `ftoi`, `fadd`, `fsub`, `fmul`, `fdiv`, `sqrt`, `sin`,
 `cos`, `tan`) on IEEE 754 binary32 with round to nearest even, subnormals included, around one shared
 67-bit adder. `sin`/`cos`/`tan` use Payne-Hanek argument reduction and a 62-step CORDIC and
-take about 500 cycles.
+take about 650 cycles.
 
 ### Memory map
 

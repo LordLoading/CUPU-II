@@ -113,7 +113,7 @@ architecture rtl of cupu_fpu is
     F_FTOI_SHIFT, F_FTOI_RND, F_FTOI_NEG,
     F_MUL, F_DIV, F_SQRT,
     F_TRIG_SMALL, F_PH, F_PH_SHIFT, F_PH_DONE, F_PIMUL, F_TRIG_START,
-    F_CA, F_CB, F_CC, F_TRIG_OUT, F_TAN1, F_TAN2,
+    F_CA0, F_CA, F_CB0, F_CB, F_CC, F_TRIG_OUT, F_TAN1, F_TAN2,
     F_NORM, F_ROUND, F_DONE
   );
   -- where F_NORM goes when it is done
@@ -153,6 +153,8 @@ architecture rtl of cupu_fpu is
   signal add_ge       : std_logic;  -- carry out: add_x >= add_y when subtracting
 
   signal shifted : unsigned(65 downto 0);  -- CORDIC: X or Y >>> i
+  signal SH      : unsigned(65 downto 0);  -- shifted, registered so the shifter and the adder
+                                           -- are in different cycles (timing)
   signal atan_i  : unsigned(65 downto 0);
 
   -- which CORDIC output F_TRIG_OUT / F_TAN1 convert: '1' = Y (sin r), '0' = X (cos r)
@@ -208,7 +210,7 @@ begin
   trig_use_y <= (is_sin and not quad(0)) or (is_cos and quad(0)) or
                 (is_tan and not (in_out xor quad(0)));
 
-  shifted <= asr(Y, to_integer(cnt(5 downto 0))) when state = F_CA else
+  shifted <= asr(Y, to_integer(cnt(5 downto 0))) when state = F_CA0 else
              asr(X, to_integer(cnt(5 downto 0)));
 
   process (cnt)
@@ -225,7 +227,7 @@ begin
   ---------------------------------------------------------------------------
   -- shared adder operands
   ---------------------------------------------------------------------------
-  process (state, opn, a, R, X, Y, Z, W, ma, mb, stk, effsub, cnt, shifted, atan_i, trig_use_y)
+  process (state, opn, a, R, X, Y, Z, W, ma, mb, stk, effsub, cnt, SH, atan_i, trig_use_y)
     variable v : unsigned(65 downto 0);
   begin
     add_x   <= (others => '0');
@@ -273,11 +275,11 @@ begin
       --   z <  0: x += y>>i, y -= x>>i, z += atan(2^-i)
       when F_CA =>
         add_x   <= X;
-        add_y   <= shifted;
+        add_y   <= SH;
         add_inv <= not Z(65);
       when F_CB =>
         add_x   <= Y;
-        add_y   <= shifted;
+        add_y   <= SH;
         add_inv <= Z(65);
       when F_CC =>
         add_x   <= Z;
@@ -642,12 +644,20 @@ begin
               X     <= CORDIC_K;
               Y     <= (others => '0');
               cnt   <= (others => '0');
-              state <= F_CA;
+              state <= F_CA0;
             end if;
+
+          when F_CA0 =>
+            SH    <= shifted;                        -- Y >>> i
+            state <= F_CA;
 
           when F_CA =>
             W(65 downto 0) <= add_s(65 downto 0);   -- new X, parked
-            state          <= F_CB;
+            state          <= F_CB0;
+
+          when F_CB0 =>
+            SH    <= shifted;                        -- X >>> i (X is still the old one)
+            state <= F_CB;
 
           when F_CB =>
             Y     <= add_s(65 downto 0);
@@ -660,7 +670,7 @@ begin
               state <= F_TRIG_OUT;
             else
               cnt   <= cnt + 1;
-              state <= F_CA;
+              state <= F_CA0;
             end if;
 
           when F_TRIG_OUT =>
