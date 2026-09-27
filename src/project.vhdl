@@ -158,6 +158,17 @@ architecture rtl of cupu_fpu is
   -- which CORDIC output F_TRIG_OUT / F_TAN1 convert: '1' = Y (sin r), '0' = X (cos r)
   signal is_sin, is_cos, is_tan, in_out, trig_use_y : std_logic;
 
+  -- arithmetic shift right built from logical shifts: GHDL 4.1's Verilog output turns
+  -- shift_right(signed, n) into a logical >>, which breaks negative values
+  function asr(v : unsigned(65 downto 0); n : natural) return unsigned is
+    constant ONES : unsigned(65 downto 0) := (others => '1');
+  begin
+    if v(65) = '1' then
+      return shift_right(v, n) or not shift_right(ONES, n);
+    end if;
+    return shift_right(v, n);
+  end function;
+
   function unpack_e(e : unsigned(7 downto 0)) return exp_t is
   begin
     if e = 0 then
@@ -188,7 +199,6 @@ begin
   sb     <= b(31);
   sbe    <= b(31) xor '1' when opn = OP_FSUB else b(31);
 
-  -- plain std_logic on purpose: GHDL 4.1 synthesis got the boolean version of this wrong
   is_sin <= '1' when opn = OP_SIN else '0';
   is_cos <= '1' when opn = OP_COS else '0';
   is_tan <= '1' when opn = OP_TAN else '0';
@@ -198,8 +208,8 @@ begin
   trig_use_y <= (is_sin and not quad(0)) or (is_cos and quad(0)) or
                 (is_tan and not (in_out xor quad(0)));
 
-  shifted <= unsigned(shift_right(signed(Y), to_integer(cnt(5 downto 0)))) when state = F_CA else
-             unsigned(shift_right(signed(X), to_integer(cnt(5 downto 0))));
+  shifted <= asr(Y, to_integer(cnt(5 downto 0))) when state = F_CA else
+             asr(X, to_integer(cnt(5 downto 0)));
 
   process (cnt)
   begin
@@ -254,7 +264,7 @@ begin
           add_y <= resize(ma, 66);
         end if;
       when F_PIMUL =>
-        add_x <= unsigned(shift_right(signed(Z), 1));
+        add_x <= Z(65) & Z(65 downto 1);
         if PI_HALF(to_integer(cnt(6 downto 0))) = '1' then
           add_y <= X;
         end if;
@@ -608,7 +618,7 @@ begin
           when F_PH_DONE =>
             -- nearest quadrant, and the signed remainder in [-0.5, 0.5) quarter turns
             quad  <= W(67 downto 66) + ("0" & W(65));
-            X     <= unsigned(shift_right(signed(W(65 downto 0)), 4));  -- Q3.62
+            X     <= (65 downto 62 => W(65)) & W(65 downto 4);  -- Q3.62, sign extended
             Z     <= (others => '0');
             cnt   <= to_unsigned(64, 8);
             state <= F_PIMUL;
