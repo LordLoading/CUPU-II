@@ -6,8 +6,7 @@ SIM ?= icarus
 FST ?= -fst # Use more efficient FST format
 TOPLEVEL_LANG ?= verilog
 SRC_DIR = $(PWD)/../src
-# project.v is generated from the VHDL sources by ../gen_verilog.sh
-PROJECT_SOURCES = project.v
+PROJECT_SOURCES = generated/project.v
 
 ifneq ($(GATES),yes)
 
@@ -30,11 +29,6 @@ VERILOG_SOURCES += $(PDK_ROOT)/gf180mcuD/libs.ref/gf180mcu_fd_sc_mcu7t5v0/verilo
 # this gets copied in by the GDS action workflow
 VERILOG_SOURCES += $(PWD)/gate_level_netlist.v
 
-endif
-
-# Waveforms are off by default: the test runs for millions of cycles. Use `make WAVES=1`.
-ifeq ($(WAVES),1)
-COMPILE_ARGS    += -DWAVES
 endif
 
 # Allow sharing configuration between design and testbench via `include`:

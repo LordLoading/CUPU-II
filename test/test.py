@@ -69,7 +69,7 @@ async def test_program(dut):
 
     dut.dump.value = 1
     await ClockCycles(dut.clk, 2)
-    words = [line for line in open("ram_dump.hex").read().split() if not line.startswith("//")]
+    words = [w for line in open("ram_dump.hex") for w in line.split("//")[0].split()]
     with open("results.txt", "w") as f:
         f.write("\n".join(words) + "\n")
     assert check("expected.txt", "results.txt", dut._log.info), "wrong results"

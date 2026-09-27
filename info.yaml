@@ -1,33 +1,36 @@
-# Tiny Tapeout project information (GF180MCU / wafer.space shuttle)
-
+# Tiny Tapeout project information
 project:
-  title:        "CUPU-II Stollentroll"
-  author:       "zOnlyKroks"
-  discord:      ""
-  description:  "32-bit CUPU-II CPU running from SPI PSRAM on the QSPI Pmod"
-  language:     "VHDL"
-  clock_hz:     25000000
+  title:        "CUPU-II Stollentroll"      # Project title
+  author:       "zOnlyKroks"      # Your name
+  discord:      ""      # Your discord username, for communication and automatically assigning you a Tapeout role (optional)
+  description:  "32-bit CUPU-II CPU with FPU, running from SPI PSRAM on the QSPI Pmod"      # One line description of what your project does
+  language:     "VHDL" # other examples include SystemVerilog, Amaranth, VHDL, etc
+  clock_hz:     25000000       # Clock frequency in Hz (or 0 if not applicable)
 
-  # Yosys + GF180 7-track cells: ~5.9k cells, ~180k um^2 before placement.
-  # 3x2 might fit at ~55% utilisation; 4x2 leaves headroom for routing.
-  tiles: "4x2"
+  # How many tiles your design occupies? A single tile is about 340x160 uM.
+  tiles: "3x4"          # Valid values: 1x1, 1x2, 2x2, 3x2, 4x2, 3x4 or 4x4
 
+  # Your top module name must start with "tt_um_". Make it unique by including your github username:
   top_module:  "tt_um_zonlykroks_cupu"
 
-  # project.v is generated from the VHDL in src/ by gen_verilog.sh
+  # List your project's source files here.
+  # Source files must be in ./src and you must list each source file separately, one per line.
+  # Don't forget to also update `PROJECT_SOURCES` in test/Makefile.
   source_files:
-    - "project.v"
+    - "project.vhdl"
 
+# The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
+# This section is for the datasheet/website. Use descriptive names (e.g., RX, TX, MOSI, SCL, SEG_A, etc.).
 pinout:
   # Inputs
-  ui[0]: "KBD0"
-  ui[1]: "KBD1"
-  ui[2]: "KBD2"
-  ui[3]: "KBD3"
-  ui[4]: "KBD4"
-  ui[5]: "KBD5"
-  ui[6]: "KBD6"
-  ui[7]: "KBD7"
+  ui[0]: "KEY0"
+  ui[1]: "KEY1"
+  ui[2]: "KEY2"
+  ui[3]: "KEY3"
+  ui[4]: "KEY4"
+  ui[5]: "KEY5"
+  ui[6]: "KEY6"
+  ui[7]: "KEY_STROBE"
 
   # Outputs
   uo[0]: "GPIO0"
@@ -39,7 +42,7 @@ pinout:
   uo[6]: "GPIO6"
   uo[7]: "GPIO7"
 
-  # Bidirectional pins (TT QSPI Pmod)
+  # Bidirectional pins
   uio[0]: "FLASH_CS (held high)"
   uio[1]: "MOSI"
   uio[2]: "MISO"

@@ -8,7 +8,7 @@
 /emu/dist-newstyle
 *.exe
 
-# Tiny Tapeout
+# Tiny Tapeout (from the template)
 .DS_Store
 .idea
 *.vcd
@@ -16,13 +16,19 @@
 *.fst.hier
 runs
 tt_submission
+src/generated/
 src/user_config.json
 src/config_merged.json
 test/sim_build
 test/__pycache__/
 test/results.xml
 test/gate_level_netlist.v
+
+# test outputs
 test/prog.hex
 test/expected.txt
 test/results.txt
+test/ram_dump.hex
+test/vhdl/*.txt
+test/vhdl/prog.hex
 test/vhdl/work-obj08.cf

@@ -5,7 +5,7 @@
 set -e
 cd "$(dirname "$0")"
 GHDL=${GHDL:-ghdl}
-SRC="../../src/cupu_fpu_pkg.vhd ../../src/cupu_fpu.vhd ../../src/cupu_spi.vhd ../../src/cupu_core.vhd ../../src/tt_um_zonlykroks_cupu.vhd"
+SRC="../../src/project.vhdl"
 rm -f work-obj08.cf
 if [ "$1" = "fpu" ]; then
   python gen_fpu_vectors.py

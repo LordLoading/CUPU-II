@@ -3,17 +3,18 @@
 
 /* Testbench for CUPU-II: the TT top level plus the two PSRAMs of the QSPI Pmod.
    test.py loads the program with a pulse on `load` and reads memory back with `dump`.
-   Waveforms are only written with WAVES=1 (the full program runs for millions of cycles).
+   The full program runs for millions of cycles, so waveforms are only written with
+   `make PLUSARGS=+waves`.
 */
 module tb ();
 
-`ifdef WAVES
   initial begin
-    $dumpfile("tb.fst");
-    $dumpvars(0, tb);
+    if ($test$plusargs("waves")) begin
+      $dumpfile("tb.fst");
+      $dumpvars(0, tb);
+    end
     #1;
   end
-`endif
 
   reg clk;
   reg rst_n;
