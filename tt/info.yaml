@@ -1,0 +1,53 @@
+# Tiny Tapeout project information (GF180MCU / wafer.space shuttle)
+
+project:
+  title:        "CUPU-II Stollentroll"
+  author:       "zOnlyKroks"
+  discord:      ""
+  description:  "32-bit CUPU-II CPU running from SPI PSRAM on the QSPI Pmod"
+  language:     "VHDL"
+  clock_hz:     25000000
+
+  # Yosys + GF180 7-track cells: ~5.9k cells, ~180k um^2 before placement.
+  # 3x2 might fit at ~55% utilisation; 4x2 leaves headroom for routing.
+  tiles: "4x2"
+
+  top_module:  "tt_um_zonlykroks_cupu"
+
+  # project.v is generated from the VHDL in src/ by gen_verilog.sh
+  source_files:
+    - "project.v"
+
+pinout:
+  # Inputs
+  ui[0]: "KBD0"
+  ui[1]: "KBD1"
+  ui[2]: "KBD2"
+  ui[3]: "KBD3"
+  ui[4]: "KBD4"
+  ui[5]: "KBD5"
+  ui[6]: "KBD6"
+  ui[7]: "KBD7"
+
+  # Outputs
+  uo[0]: "GPIO0"
+  uo[1]: "GPIO1"
+  uo[2]: "GPIO2"
+  uo[3]: "GPIO3"
+  uo[4]: "GPIO4"
+  uo[5]: "GPIO5"
+  uo[6]: "GPIO6"
+  uo[7]: "GPIO7"
+
+  # Bidirectional pins (TT QSPI Pmod)
+  uio[0]: "FLASH_CS (held high)"
+  uio[1]: "MOSI"
+  uio[2]: "MISO"
+  uio[3]: "SCK"
+  uio[4]: ""
+  uio[5]: ""
+  uio[6]: "RAM_A_CS"
+  uio[7]: "RAM_B_CS"
+
+# Do not change!
+yaml_version: 6

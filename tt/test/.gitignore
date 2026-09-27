@@ -1,0 +1,5 @@
+prog.hex
+expected.txt
+results.txt
+work-obj08.cf
+*.o
