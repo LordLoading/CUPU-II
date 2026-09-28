@@ -19,6 +19,14 @@
   "//": "The value is in nanoseconds, so 20ns == 50MHz.",
   "CLOCK_PERIOD": 40,
 
+  "//": "RSZ_CORNERS - Corners the resizer repairs timing for. Only tt setup violations fail the",
+  "//": "flow; letting it chase the ss_125C corner (tens of ns short) ran gds past the 6 h limit.",
+  "//": "ff is kept for hold repair.",
+  "RSZ_CORNERS": [
+    "nom_tt_025C_3v30", "min_tt_025C_3v30", "max_tt_025C_3v30",
+    "nom_ff_n40C_3v60", "min_ff_n40C_3v60", "max_ff_n40C_3v60"
+  ],
+
   "//": "Hold slack margin - Increase them in case you are getting hold violations.",
   "PL_RESIZER_HOLD_SLACK_MARGIN": 0.1,
   "GRT_RESIZER_HOLD_SLACK_MARGIN": 0.05,
