@@ -113,7 +113,7 @@ architecture rtl of cupu_fpu is
     F_FTOI_SHIFT, F_FTOI_RND, F_FTOI_NEG,
     F_MUL, F_DIV, F_SQRT,
     F_TRIG_SMALL, F_PH, F_PH_SHIFT, F_PH_DONE, F_PIMUL, F_TRIG_START,
-    F_CA0, F_CA, F_CB0, F_CB, F_CC, F_TRIG_OUT, F_TAN1, F_TAN2,
+    F_CA0, F_CSA, F_CA, F_CB0, F_CSB, F_CB, F_CC, F_TRIG_OUT, F_TAN1, F_TAN2,
     F_NORM, F_ROUND, F_DONE
   );
   -- where F_NORM goes when it is done
@@ -152,24 +152,12 @@ architecture rtl of cupu_fpu is
   signal add_s        : unsigned(66 downto 0);
   signal add_ge       : std_logic;  -- carry out: add_x >= add_y when subtracting
 
-  signal shifted : unsigned(65 downto 0);  -- CORDIC: X or Y >>> i
-  signal SH      : unsigned(65 downto 0);  -- shifted, registered so the shifter and the adder
-                                           -- are in different cycles (timing)
+  signal SH      : unsigned(65 downto 0);  -- CORDIC: X or Y >>> i, shifted one bit per cycle
+  signal k       : unsigned(5 downto 0);   -- bits left to shift
   signal atan_i  : unsigned(65 downto 0);
 
   -- which CORDIC output F_TRIG_OUT / F_TAN1 convert: '1' = Y (sin r), '0' = X (cos r)
   signal is_sin, is_cos, is_tan, in_out, trig_use_y : std_logic;
-
-  -- arithmetic shift right built from logical shifts: GHDL 4.1's Verilog output turns
-  -- shift_right(signed, n) into a logical >>, which breaks negative values
-  function asr(v : unsigned(65 downto 0); n : natural) return unsigned is
-    constant ONES : unsigned(65 downto 0) := (others => '1');
-  begin
-    if v(65) = '1' then
-      return shift_right(v, n) or not shift_right(ONES, n);
-    end if;
-    return shift_right(v, n);
-  end function;
 
   function unpack_e(e : unsigned(7 downto 0)) return exp_t is
   begin
@@ -209,9 +197,6 @@ begin
   -- tan: denominator (F_TRIG_OUT) q even X, odd Y; numerator (F_TAN1) the other one
   trig_use_y <= (is_sin and not quad(0)) or (is_cos and quad(0)) or
                 (is_tan and not (in_out xor quad(0)));
-
-  shifted <= asr(Y, to_integer(cnt(5 downto 0))) when state = F_CA0 else
-             asr(X, to_integer(cnt(5 downto 0)));
 
   process (cnt)
   begin
@@ -647,17 +632,37 @@ begin
               state <= F_CA0;
             end if;
 
+          -- x >>> i and y >>> i one bit per cycle: no 66-bit barrel shifter
+          -- (shifts are written out by hand; GHDL 4.1's Verilog turns signed >> into logical)
           when F_CA0 =>
-            SH    <= shifted;                        -- Y >>> i
-            state <= F_CA;
+            SH    <= Y;
+            k     <= cnt(5 downto 0);
+            state <= F_CSA;
+
+          when F_CSA =>
+            if k = 0 then
+              state <= F_CA;
+            else
+              SH <= SH(65) & SH(65 downto 1);
+              k  <= k - 1;
+            end if;
 
           when F_CA =>
             W(65 downto 0) <= add_s(65 downto 0);   -- new X, parked
             state          <= F_CB0;
 
           when F_CB0 =>
-            SH    <= shifted;                        -- X >>> i (X is still the old one)
-            state <= F_CB;
+            SH    <= X;                              -- X is still the old one
+            k     <= cnt(5 downto 0);
+            state <= F_CSB;
+
+          when F_CSB =>
+            if k = 0 then
+              state <= F_CB;
+            else
+              SH <= SH(65) & SH(65 downto 1);
+              k  <= k - 1;
+            end if;
 
           when F_CB =>
             Y     <= add_s(65 downto 0);
@@ -931,7 +936,7 @@ end entity;
 
 architecture rtl of cupu_core is
   subtype word is unsigned(31 downto 0);
-  type regfile_t is array (0 to 31) of word;  -- entry 0 is never written
+  type regfile_t is array (0 to 31) of word;  -- entry 0 is constant zero
 
   type state_t is (
     S_FETCH, S_RA, S_RB, S_EXEC, S_MEM, S_WB, S_WBJ, S_NEXT, S_JRAL,
@@ -962,6 +967,11 @@ architecture rtl of cupu_core is
 
   signal rf_idx : unsigned(4 downto 0);
   signal rf_rd  : word;
+  signal wr_en   : std_logic;
+  signal wr_idx  : unsigned(4 downto 0);
+  signal wr_data : word;
+  signal wr_gate : std_logic_vector(1 to 31);
+  signal rf_clk  : std_logic_vector(1 to 31);
   signal wb_val : word;
   signal pc_inc : word;
 
@@ -1056,13 +1066,8 @@ begin
   rf_idx <= f_a when state = S_RA else
             f_t when op = OP_STORE else
             f_b;
-  process (rf_idx, regs)
-  begin
-    rf_rd <= (others => '0');
-    if rf_idx /= 0 then
-      rf_rd <= regs(to_integer(rf_idx));
-    end if;
-  end process;
+  regs(0) <= (others => '0');
+  rf_rd   <= regs(to_integer(rf_idx));
 
   -- mul, div and udivi leave their result in opa; everything else in acc
   wb_val <= opa when op = OP_MUL or op = OP_DIV or op = OP_DIVU else acc;
@@ -1282,18 +1287,39 @@ begin
   end process;
 
   ---------------------------------------------------------------------------
-  -- register file write; S_CLEAR zeroes it after reset, one register per cycle
+  -- register file write; S_CLEAR zeroes it after reset, one register per cycle.
+  -- Each register has its own gated clock instead of 32 enable muxes (area and
+  -- routing). The gates are sampled on the falling edge, so they only change while
+  -- clk is low and the gated clocks cannot glitch; the write still lands on the
+  -- rising edge that ends S_WB / S_WBJ / S_CLEAR, as with an enable.
   ---------------------------------------------------------------------------
+  wr_en   <= '1' when state = S_CLEAR or ((state = S_WB or state = S_WBJ) and f_t /= 0) else '0';
+  wr_idx  <= cnt when state = S_CLEAR else f_t;
+  wr_data <= (others => '0') when state = S_CLEAR else wb_val;
+
   process (clk)
   begin
-    if rising_edge(clk) then
-      if state = S_CLEAR then
-        regs(to_integer(cnt)) <= (others => '0');
-      elsif (state = S_WB or state = S_WBJ) and f_t /= 0 then
-        regs(to_integer(f_t)) <= wb_val;
-      end if;
+    if falling_edge(clk) then
+      for r in 1 to 31 loop
+        if wr_en = '1' and wr_idx = r then
+          wr_gate(r) <= '1';
+        else
+          wr_gate(r) <= '0';
+        end if;
+      end loop;
     end if;
   end process;
+
+  rf_write : for r in 1 to 31 generate
+    rf_clk(r) <= clk and wr_gate(r);
+
+    process (rf_clk(r))
+    begin
+      if rising_edge(rf_clk(r)) then
+        regs(r) <= wr_data;
+      end if;
+    end process;
+  end generate;
 
   ---------------------------------------------------------------------------
   -- control
