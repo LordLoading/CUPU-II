@@ -4,13 +4,22 @@ import (
 	"emulator/hardware"
 )
 
+var Target uint32 = 0
+var A uint32 = 0
+var B uint32 = 0
+
+var UsesA bool = false
+var UsesB bool = false
+var UsesT bool = false
+
+
 func Tick() bool {
 	InstReg = hardware.ReadWord(ProgramCounter)
 	var IsCond = InstReg>>31 != 0
 	var OpCode = (InstReg >> 26) & 0x1F
-	var Target = (InstReg >> 21) & 0x1F
-	var A = (InstReg >> 16) & 0x1F
-	var B = (InstReg >> 11) & 0x1F
+	Target = (InstReg >> 21) & 0x1F
+	A = (InstReg >> 16) & 0x1F
+	B = (InstReg >> 11) & 0x1F
 	var Func11 = InstReg & 0x7FF
 	var Imm = InstReg & 0x0FFFF
 	if Imm&0x8000 != 0 {
@@ -18,11 +27,25 @@ func Tick() bool {
 	}
 
 	if !(IsCond && !Cond) {
+		UsesA = true
+		UsesB = true
+		UsesT = true
+
+		if OpCode >= 0x08 && OpCode <= 0x0F {
+			UsesB = false
+		}
+
 		switch OpCode {
 		case 0x00:
 			if Func11 <= 0x17 {
 				WriteReg(Target, AutoOp(byte(Func11), ReadReg(A), ReadReg(B)))
 			} else {
+				if Func11 >= 0x20 && Func11 <= 0x25 {
+					UsesT = false
+				} else if Func11 >= 0x30 && Func11 <= 0x35 {
+					UsesB = false
+				}
+
 				switch Func11 {
 				case 0x20:
 					Cond = ReadReg(A) == ReadReg(B)
@@ -49,6 +72,9 @@ func Tick() bool {
 				case 0x35:
 					hardware.WriteByte(ReadReg(A), byte(ReadReg(Target)))
 				case 0x40:
+					UsesA = false
+					UsesB = false
+					UsesT = false
 					return false
 				}
 			}

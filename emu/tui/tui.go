@@ -1,24 +1,37 @@
 package tui
 
 import (
+	"emulator/hardware/cpu"
+	"time"
+
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
-var targetCyclesPerSecond uint32 = 1e+2
+var targetCyclesPerSecond uint32 = 2
 
 type model struct {
 	regTable table.Model
 }
 
+type frameMsg struct{}
+
 func NewModel() model {
+	runCPU(targetCyclesPerSecond)
 	return model{
-		regTable: regs,
+		// model: regTables,
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	return nil
+	regs1.SetCursor(-1)
+	regs2.SetCursor(-1)
+	styles := table.DefaultStyles()
+	styles.Selected = lipgloss.NewStyle()
+	regs1.SetStyles(styles)
+	regs2.SetStyles(styles)
+	return tea.Tick(16*time.Millisecond, func(time.Time) tea.Msg { return frameMsg{} })
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -28,22 +41,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	}
+
+	switch msg.(type) {
+	case frameMsg:
+		regs = buildRegRows()
+		regs1.SetRows(regs[0])
+		regs2.SetRows(regs[1])
+		return m, tea.Tick(16*time.Millisecond, func(time.Time) tea.Msg { return frameMsg{} })
+	}
+
 	return m, nil
 }
 
 func (m model) View() string {
-	return m.regTable.View()
+	return lipgloss.JoinHorizontal(lipgloss.Top, regs1.View(), regs2.View())
 }
 
-// func (m model) View() string {
-// 	info := fmt.Sprintf("Clock: %.0f Hz  |  PC: 0x%08x  |  IR: 0x%08x  |  Press 'c' to set clock  |  Press 'k' to keyboard", m.measuredFreq, cpu.ProgramCounter, cpu.InstReg)
-// 	clockRow := lipgloss.JoinHorizontal(lipgloss.Top, m.clockInput.View())
-// 	keyboardRow := lipgloss.JoinHorizontal(lipgloss.Top, m.keyboardInput.View())
-// 	return lipgloss.JoinVertical(lipgloss.Top, info, clockRow, keyboardRow, lipgloss.JoinHorizontal(lipgloss.Top, m.regTable.View(), ramView()))
-// }
-//
-// func Run() error {
-// 	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
-// 	_, err := p.Run()
-// 	return err
-// }
+func runCPU(targetFreq uint32) {
+	go func() {
+		for {
+			cpu.Tick()
+			time.Sleep(time.Second / time.Duration(targetFreq))
+		}
+	}()
+}
