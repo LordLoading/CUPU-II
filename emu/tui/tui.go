@@ -9,7 +9,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var targetCyclesPerSecond uint32 = 2
+var targetCyclesPerSecond uint32 = 1e6
+var cyclesSinceMeasurement uint32 = 0
+var lastMeasurementTime time.Time = time.Now()
+var clockSpeed uint32 = 0
 
 type model struct {
 	regTable table.Model
@@ -47,6 +50,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		regs = buildRegRows()
 		regs1.SetRows(regs[0])
 		regs2.SetRows(regs[1])
+
+		sinceLastMeasurement := time.Since(lastMeasurementTime)
+		if time.Duration(sinceLastMeasurement.Seconds()) > 1 {
+			clockSpeed = cyclesSinceMeasurement / uint32(sinceLastMeasurement.Seconds())
+			lastMeasurementTime = time.Now()
+			cyclesSinceMeasurement = 0
+		}
+
 		return m, tea.Tick(16*time.Millisecond, func(time.Time) tea.Msg { return frameMsg{} })
 	}
 
@@ -54,16 +65,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	return lipgloss.JoinVertical(lipgloss.Top, 
-		getState(), 
-		lipgloss.JoinHorizontal(lipgloss.Top, regs1.View(), regs2.View()))
+	return lipgloss.JoinVertical(lipgloss.Top,
+		getInfo(),
+		lipgloss.JoinHorizontal(lipgloss.Top,
+			regs1.View(), regs2.View()))
 }
 
 func runCPU(targetFreq uint32) {
+	lastTickTime := time.Now()
 	go func() {
 		for {
+			lastTickTime = time.Now()
 			cpu.Tick()
-			time.Sleep(time.Second / time.Duration(targetFreq))
+			time.Sleep(time.Duration((time.Second/time.Duration(targetFreq) - time.Since(lastTickTime))))
+			cyclesSinceMeasurement += 1
 		}
 	}()
 }
