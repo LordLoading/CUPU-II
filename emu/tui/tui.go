@@ -54,7 +54,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	return lipgloss.JoinHorizontal(lipgloss.Top, regs1.View(), regs2.View())
+	return lipgloss.JoinVertical(lipgloss.Top, 
+		getState(), 
+		lipgloss.JoinHorizontal(lipgloss.Top, regs1.View(), regs2.View()))
 }
 
 func runCPU(targetFreq uint32) {

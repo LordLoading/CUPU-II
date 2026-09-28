@@ -12,7 +12,6 @@ var UsesA bool = false
 var UsesB bool = false
 var UsesT bool = false
 
-
 func Tick() bool {
 	InstReg = hardware.ReadWord(ProgramCounter)
 	var IsCond = InstReg>>31 != 0
