@@ -20,6 +20,6 @@ func main() {
 	}
 
 	m := tui.NewModel()
-	p := tea.NewProgram(m)
+	p := tea.NewProgram(m, tea.WithAltScreen())
 	p.Run()
 }
