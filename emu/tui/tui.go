@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var targetCyclesPerSecond uint32 = 5
+var targetCyclesPerSecond uint32 = 1e5
 var cyclesSinceMeasurement uint32 = 0
 var lastMeasurementTime time.Time = time.Now()
 var clockSpeed uint32 = 0
@@ -31,14 +31,16 @@ func NewModel() model {
 var box = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
 
 func runCPU(targetFreq uint32) {
-	lastTickTime := time.Now()
 	go func() {
+		ticker := time.NewTicker(time.Second / time.Duration(targetFreq))
+		defer ticker.Stop()
 		for {
-			lastTickTime = time.Now()
-			prevPC = cpu.ProgramCounter
-			cpu.Tick()
-			time.Sleep(time.Duration((time.Second/time.Duration(targetFreq) - time.Since(lastTickTime))))
-			cyclesSinceMeasurement += 1
+			select {
+			case <-ticker.C:
+				prevPC = cpu.ProgramCounter
+				cpu.Tick()
+				cyclesSinceMeasurement += 1
+			}
 		}
 	}()
 }
@@ -88,4 +90,3 @@ func (m model) View() string {
 				regs1.View(), regs2.View())),
 			box.Render(buildRamTable())))
 }
-
