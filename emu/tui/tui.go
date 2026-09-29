@@ -9,10 +9,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var targetCyclesPerSecond uint32 = 1e8
+var targetCyclesPerSecond uint32 = 5
 var cyclesSinceMeasurement uint32 = 0
 var lastMeasurementTime time.Time = time.Now()
 var clockSpeed uint32 = 0
+var prevPC uint32 = 0
 
 type model struct {
 	regTable table.Model
@@ -34,6 +35,7 @@ func runCPU(targetFreq uint32) {
 	go func() {
 		for {
 			lastTickTime = time.Now()
+			prevPC = cpu.ProgramCounter
 			cpu.Tick()
 			time.Sleep(time.Duration((time.Second/time.Duration(targetFreq) - time.Since(lastTickTime))))
 			cyclesSinceMeasurement += 1
@@ -44,12 +46,10 @@ func runCPU(targetFreq uint32) {
 func (m model) Init() tea.Cmd {
 	regs1.SetCursor(-1)
 	regs2.SetCursor(-1)
-	ramTable.SetCursor(-1)
 	styles := table.DefaultStyles()
 	styles.Selected = lipgloss.NewStyle()
 	regs1.SetStyles(styles)
 	regs2.SetStyles(styles)
-	ramTable.SetStyles(styles)
 	return tea.Tick(16*time.Millisecond, func(time.Time) tea.Msg { return frameMsg{} })
 }
 
@@ -66,7 +66,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		regs = buildRegRows()
 		regs1.SetRows(regs[0])
 		regs2.SetRows(regs[1])
-		ramTable.SetRows(buildRamRows())
 
 		sinceLastMeasurement := time.Since(lastMeasurementTime)
 		if time.Duration(sinceLastMeasurement.Seconds()) > 1 {
@@ -87,6 +86,6 @@ func (m model) View() string {
 		lipgloss.JoinHorizontal(lipgloss.Top,
 			box.Render(lipgloss.JoinHorizontal(lipgloss.Top,
 				regs1.View(), regs2.View())),
-			box.Render(ramTable.View())))
+			box.Render(buildRamTable())))
 }
 
