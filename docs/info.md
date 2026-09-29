@@ -16,14 +16,21 @@ Program and data live in the two PSRAMs of the Tiny Tapeout QSPI Pmod, accessed 
 clk/2. Addresses 0x000000–0x7FFFFF go to RAM A, 0x800000–0xFFFFFF to RAM B, matching the emulator's
 16 MiB. After reset the registers are cleared and execution starts at address 0.
 
-The integer core has one register-file read port, one shared 33-bit adder, a 32-cycle
-multiplier/divider and a one-bit-per-cycle shifter. An instruction takes about 130 cycles, almost all
-of it the SPI fetch (~190k instructions/s at 25 MHz).
+The design is built to route in GF180 with its three routing layers, so it avoids wide
+multiplexers:
+
+- The register file is bit-serial: each register is a ring of 32 flip-flops rotating one bit per
+  clock. Reading `$a` and `$b` takes 32 cycles; writing `$t` takes 32 cycles in the background while
+  the next instruction is fetched.
+- The integer core has one shared 33-bit adder, a 32-cycle multiplier/divider and a
+  one-bit-per-cycle shifter.
+- An instruction takes about 165 cycles, most of it the SPI fetch (~150k instructions/s at 25 MHz).
 
 The FPU implements all ten float ops (`itof`, `ftoi`, `fadd`, `fsub`, `fmul`, `fdiv`, `sqrt`, `sin`,
-`cos`, `tan`) on IEEE 754 binary32 with round to nearest even, subnormals included, around one shared
-67-bit adder. `sin`/`cos`/`tan` use Payne-Hanek argument reduction and a 62-step CORDIC and
-take about 4,500 cycles (the CORDIC shifts one bit per cycle to save area).
+`cos`, `tan`) on IEEE 754 binary32 with round to nearest even, subnormals included. Its wide
+registers exchange data only through one shared 67-bit adder. Basic ops take 50–150 cycles;
+`sin`/`cos`/`tan` use Payne-Hanek argument reduction and a 62-step CORDIC and take about 5,000
+cycles.
 
 ### Memory map
 

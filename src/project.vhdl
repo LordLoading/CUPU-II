@@ -112,8 +112,12 @@ architecture rtl of cupu_fpu is
   -- between them through the adder (rbus = A + (B xor inv) + inv). Otherwise a register
   -- loads a constant or shifts itself by one bit, so all other wiring stays local; the
   -- earlier version with many register-to-register paths did not route in GF180.
+  --
+  -- The adder's operands are registered: a state that uses rbus spends one cycle with
+  -- its operands being selected and latched ("arming") and acts in the second. That keeps
+  -- the state decode and operand muxes out of the adder's cycle.
   type state_t is (
-    F_IDLE, F_PRENORM,
+    F_IDLE, F_ITOF, F_PRENORM,
     F_ADD_LD1, F_ADD_LD2, F_ADD_POS, F_ADD_ALIGN, F_ADD_SUM,
     F_FTOI_LD, F_FTOI_POS, F_FTOI_SHIFT, F_FTOI_RND, F_FTOI_NEG,
     F_MUL_LD, F_MUL_ADD, F_MUL_SHR, F_MUL_MV, F_MUL_ASM,
@@ -166,6 +170,11 @@ architecture rtl of cupu_fpu is
   signal sum      : unsigned(66 downto 0);
   signal rbus     : unsigned(65 downto 0);
   signal ge       : std_logic;  -- carry out: A >= B when subtracting
+  signal opa_q    : unsigned(65 downto 0);
+  signal opbx_q   : unsigned(65 downto 0);  -- B already inverted
+  signal cin_q    : std_logic;
+  signal bus_st   : std_logic;              -- state uses rbus
+  signal armed    : std_logic;              -- operands for this state are latched
 
   signal atan_i   : unsigned(65 downto 0);
 
@@ -231,7 +240,7 @@ begin
     bsel <= BS_ZERO;
     inv  <= '0';
     case state is
-      when F_IDLE =>                                   -- itof: |a|
+      when F_ITOF =>                                   -- |a|
         bsel <= BS_SEXTA;
         inv  <= a(31);
       when F_ADD_LD1 =>                                -- bigger operand
@@ -331,19 +340,45 @@ begin
     unsigned(resize(signed(a), 66))  when BS_SEXTA,
     (0 => stk, others => '0')        when BS_STK;
 
-  process (opa, opb, inv)
-    variable bb : unsigned(65 downto 0);
-    variable c  : unsigned(66 downto 0);
+  process (clk)
   begin
-    bb := opb;
-    if inv = '1' then
-      bb := not opb;
+    if rising_edge(clk) then
+      opa_q <= opa;
+      if inv = '1' then
+        opbx_q <= not opb;
+      else
+        opbx_q <= opb;
+      end if;
+      cin_q <= inv;
     end if;
-    c := (0 => inv, others => '0');
-    sum <= ('0' & opa) + ('0' & bb) + c;
+  end process;
+
+  -- carry-select: the upper half is added for both carries while the lower half ripples
+  process (opa_q, opbx_q, cin_q)
+    variable lo       : unsigned(33 downto 0);
+    variable hi0, hi1 : unsigned(33 downto 0);
+    variable c        : unsigned(33 downto 0);
+  begin
+    c   := (0 => cin_q, others => '0');
+    lo  := ('0' & opa_q(32 downto 0)) + ('0' & opbx_q(32 downto 0)) + c;
+    hi0 := ('0' & opa_q(65 downto 33)) + ('0' & opbx_q(65 downto 33));
+    hi1 := hi0 + 1;
+    if lo(33) = '1' then
+      sum <= hi1 & lo(32 downto 0);
+    else
+      sum <= hi0 & lo(32 downto 0);
+    end if;
   end process;
   rbus <= sum(65 downto 0);
   ge   <= sum(66);
+
+  with state select bus_st <=
+    '1' when F_ITOF | F_ADD_LD1 | F_ADD_LD2 | F_ADD_SUM | F_FTOI_LD | F_FTOI_RND |
+             F_FTOI_NEG | F_MUL_LD | F_MUL_ADD | F_MUL_MV | F_DIV_LDX | F_DIV_LDY |
+             F_DIV | F_SQ_LD | F_SQ_CMP | F_SQ_END | F_TS_LD | F_PH | F_PH_MV |
+             F_PIM_ADD | F_TRIG_START | F_C1 | F_C2 | F_C3 | F_C4 | F_C5 | F_C6 |
+             F_TRIG_OUT | F_TAN1 | F_TAN1B | F_TAN2 | F_TAN2B,
+    '0' when others;
 
   ---------------------------------------------------------------------------
   -- control
@@ -364,7 +399,11 @@ begin
       done_r <= '0';
       if rst = '1' then
         state <= F_IDLE;
+        armed <= '0';
+      elsif bus_st = '1' and armed = '0' then
+        armed <= '1';
       else
+        armed <= '0';
         case state is
           -------------------------------------------------------------------
           when F_IDLE =>
@@ -381,10 +420,7 @@ begin
                   if a = x"00000000" then
                     res_r <= (others => '0');
                   else
-                    sr    <= a(31);
-                    R     <= rbus;
-                    er    <= 65;
-                    state <= F_NORM;
+                    state <= F_ITOF;
                   end if;
 
                 when OP_FTOI =>
@@ -483,6 +519,12 @@ begin
                   res_r <= QNAN;
               end case;
             end if;
+
+          when F_ITOF =>
+            sr    <= a(31);
+            R     <= rbus;
+            er    <= 65;
+            state <= F_NORM;
 
           -------------------------------------------------------------------
           when F_PRENORM =>
@@ -1142,25 +1184,30 @@ architecture rtl of cupu_core is
   signal op     : op_t;
 
   -- register file
-  signal rf       : ring_t;                     -- rf(r)(0) is bit ph of register r
-  signal ph       : unsigned(4 downto 0);
+  signal rf       : ring_t;                     -- rf(r)(0) is bit `phase` of register r
+  signal ph1h     : std_logic_vector(0 to 31);  -- phase, one-hot
   signal taps     : std_logic_vector(0 to 31);  -- taps(0) is $z
   signal rb_idx   : unsigned(4 downto 0);
   signal tap_a    : std_logic;
   signal tap_b    : std_logic;
   signal wr_start : std_logic;
-  signal wr_busy  : std_logic;
+  signal wr_pend  : std_logic;                  -- a write is waiting or running
+  signal wr_run   : std_logic;                  -- writing, phase 0..31
   signal wr_all   : std_logic;                  -- clearing all registers after reset
-  signal wr_src   : std_logic;                  -- '1': value is in opa, '0': in acc
-  signal wr_idx   : unsigned(4 downto 0);
-  signal wr_cnt   : unsigned(4 downto 0);
-  signal wr_bit   : std_logic;
+  signal wr_sh    : word;                       -- value being written, LSB first
+  signal wr_sel   : std_logic_vector(1 to 31);  -- register being written, one-hot
+  signal op_q     : op_t;                       -- op, registered
   signal pc_inc   : word;
 
-  -- shared adder: add_s = x + (y xor inv) + cin, 34 bits so bit 33 is the carry
+  -- shared adder: add_s = x + (y xor inv) + cin, 34 bits so bit 33 is the carry.
+  -- The operands are registered; states that use add_s take two cycles (see control).
   signal add_x, add_y : unsigned(32 downto 0);
   signal add_inv, add_cin : std_logic;
-  signal add_s : unsigned(33 downto 0);
+  signal add_xq, add_yq : unsigned(32 downto 0);
+  signal add_cq  : std_logic;
+  signal add_s   : unsigned(33 downto 0);
+  signal bus_st  : std_logic;
+  signal armed   : std_logic;
 
   -- memory access
   signal acc_addr  : word;
@@ -1244,11 +1291,12 @@ begin
 
   ---------------------------------------------------------------------------
   -- register file: each register is a ring of 32 flops rotating one bit per clock,
-  -- in step with the phase counter ph, so rf(r)(0) always holds bit ph of register r.
-  -- Reading $a and $b collects one bit of each per cycle for 32 cycles. Writing $t
-  -- replaces the bit re-entering its ring for 32 cycles; it runs in the background
-  -- while the next instruction is fetched. There are no word-wide multiplexers or
-  -- write-data broadcast, which is what made the parallel register file unroutable.
+  -- in step with the one-hot phase ph1h, so rf(r)(0) always holds bit `phase` of
+  -- register r. Reading $a and $b collects one bit of each per cycle for 32 cycles.
+  -- Writing $t shifts the value out of wr_sh into its ring during phases 0..31; it
+  -- runs in the background while the next instruction is fetched. There are no
+  -- word-wide multiplexers or write-data broadcast, which is what made the parallel
+  -- register file unroutable.
   ---------------------------------------------------------------------------
   taps(0) <= '0';
   tap_gen : for r in 1 to 31 generate
@@ -1260,36 +1308,45 @@ begin
   tap_b  <= taps(to_integer(rb_idx));
 
   wr_start <= '1' when (state = S_WB or state = S_WBJ) and f_t /= 0 else '0';
-  wr_bit   <= '0'                 when wr_all = '1' else
-              opa(to_integer(ph)) when wr_src = '1' else
-              acc(to_integer(ph));
 
   process (clk)
   begin
     if rising_edge(clk) then
+      op_q <= op;
       if rst = '1' then
-        ph      <= (others => '0');
-        wr_busy <= '1';                  -- clear all registers, as the emulator starts at 0
+        ph1h    <= (0 => '1', others => '0');
+        wr_pend <= '1';                  -- clear all registers, as the emulator starts at 0
+        wr_run  <= '0';
         wr_all  <= '1';
-        wr_cnt  <= (others => '0');
+        wr_sh   <= (others => '0');
       else
-        ph <= ph + 1;
-        if wr_busy = '1' then
-          wr_cnt <= wr_cnt + 1;
-          if wr_cnt = 31 then
-            wr_busy <= '0';
+        ph1h <= ph1h(31) & ph1h(0 to 30);
+        if wr_run = '1' then
+          wr_sh <= '0' & wr_sh(31 downto 1);
+          if ph1h(31) = '1' then
+            wr_run  <= '0';
+            wr_pend <= '0';
             wr_all  <= '0';
+          end if;
+        elsif wr_pend = '1' then
+          if ph1h(31) = '1' then
+            wr_run <= '1';               -- next cycle is phase 0
           end if;
         elsif wr_start = '1' then
           -- mul, div and udivi leave their result in opa; everything else in acc
-          wr_busy <= '1';
-          wr_cnt  <= (others => '0');
-          wr_idx  <= f_t;
-          if op = OP_MUL or op = OP_DIV or op = OP_DIVU then
-            wr_src <= '1';
+          wr_pend <= '1';
+          if op_q = OP_MUL or op_q = OP_DIV or op_q = OP_DIVU then
+            wr_sh <= opa;
           else
-            wr_src <= '0';
+            wr_sh <= acc;
           end if;
+          for r in 1 to 31 loop
+            if f_t = r then
+              wr_sel(r) <= '1';
+            else
+              wr_sel(r) <= '0';
+            end if;
+          end loop;
         end if;
       end if;
     end if;
@@ -1301,8 +1358,8 @@ begin
     begin
       if rising_edge(clk) then
         din := rf(r)(0);
-        if wr_busy = '1' and (wr_all = '1' or wr_idx = r) then
-          din := wr_bit;
+        if wr_run = '1' and (wr_all = '1' or wr_sel(r) = '1') then
+          din := wr_sh(0);
         end if;
         rf(r) <= din & rf(r)(31 downto 1);
       end if;
@@ -1314,7 +1371,7 @@ begin
   ---------------------------------------------------------------------------
   -- shared adder
   ---------------------------------------------------------------------------
-  process (state, op, opa, opb, acc, pc, cnt)
+  process (state, op_q, opa, opb, acc, pc, cnt)
   begin
     add_x   <= '0' & opa;
     add_y   <= '0' & opb;
@@ -1322,7 +1379,7 @@ begin
     add_cin <= '0';
     case state is
       when S_EXEC =>
-        case op is
+        case op_q is
           when OP_SUB | OP_UNRF | OP_CMP =>
             add_inv <= '1';
             add_cin <= '1';
@@ -1369,17 +1426,29 @@ begin
     end case;
   end process;
 
-  process (add_x, add_y, add_inv, add_cin)
-    variable y : unsigned(32 downto 0);
+  process (clk)
+  begin
+    if rising_edge(clk) then
+      add_xq <= add_x;
+      if add_inv = '1' then
+        add_yq <= not add_y;
+      else
+        add_yq <= add_y;
+      end if;
+      add_cq <= add_cin;
+    end if;
+  end process;
+
+  process (add_xq, add_yq, add_cq)
     variable c : unsigned(33 downto 0);
   begin
-    y := add_y;
-    if add_inv = '1' then
-      y := not add_y;
-    end if;
-    c := (0 => add_cin, others => '0');
-    add_s <= ('0' & add_x) + ('0' & y) + c;
+    c := (0 => add_cq, others => '0');
+    add_s <= ('0' & add_xq) + ('0' & add_yq) + c;
   end process;
+
+  with state select bus_st <=
+    '1' when S_EXEC | S_JRAL | S_MUL | S_DIV_NA | S_DIV_NB | S_DIV | S_DIV_FQ | S_DIV_FR,
+    '0' when others;
 
   ---------------------------------------------------------------------------
   -- floating point
@@ -1418,15 +1487,15 @@ begin
 
   mmio_sel  <= '0' when acc_addr(31 downto 24) = 0 else '1';
   mem_req   <= acc_req and not mmio_sel;
-  mem_we    <= '1' when state = S_MEM and op = OP_STORE else '0';
+  mem_we    <= '1' when state = S_MEM and op_q = OP_STORE else '0';
   mem_size  <= acc_size;
   mem_addr  <= std_logic_vector(acc_addr(23 downto 0));
   mem_wdata <= std_logic_vector(opb);
   -- a load of the keyboard byte blocks until a key is there, like the emulator's channel
   acc_done  <= mem_done when mmio_sel = '0' else not (kbd_hit and not kbd_valid);
-  kbd_take  <= '1' when state = S_MEM and op = OP_LOAD and kbd_hit = '1' and kbd_valid = '1' else '0';
+  kbd_take  <= '1' when state = S_MEM and op_q = OP_LOAD and kbd_hit = '1' and kbd_valid = '1' else '0';
 
-  process (acc_addr, acc_size, state, op)
+  process (acc_addr, acc_size, state, op_q)
     variable off, n : natural;
   begin
     off := to_integer(acc_addr(3 downto 0));
@@ -1437,7 +1506,7 @@ begin
     end case;
     kbd_hit <= '0';
     if acc_addr(31 downto 4) = MMIO_BASE and off <= 4 and off + n > 4
-       and not (state = S_MEM and op = OP_STORE) then
+       and not (state = S_MEM and op_q = OP_STORE) then
       kbd_hit <= '1';
     end if;
   end process;
@@ -1481,7 +1550,7 @@ begin
   -- seconds counter: counts from reset; a word store to 0x20000000 sets it
   -- (e.g. to unix time, which is what the emulator returns)
   ---------------------------------------------------------------------------
-  ts_we <= '1' when state = S_MEM and op = OP_STORE and acc_addr = x"20000000" and acc_size = "10" else '0';
+  ts_we <= '1' when state = S_MEM and op_q = OP_STORE and acc_addr = x"20000000" and acc_size = "10" else '0';
 
   process (clk)
   begin
@@ -1538,10 +1607,14 @@ begin
         pc    <= (others => '0');
         flag  <= '0';
         gpio  <= (others => '0');
+        armed <= '0';
+      elsif bus_st = '1' and armed = '0' then
+        armed <= '1';                    -- adder operands are being latched
       else
+        armed <= '0';
         ge    := add_s(33);  -- no borrow from opa - opb
         eq    := '1' when opa = opb else '0';
-        signd := '0' when op = OP_DIVU else '1';
+        signd := '0' when op_q = OP_DIVU else '1';
 
         case state is
           when S_FETCH =>
@@ -1554,9 +1627,13 @@ begin
           when S_RD =>
             -- $a -> opa and $b (or $t for stores) -> opb, one bit per cycle, once the
             -- previous instruction's write has gone in
-            if wr_busy = '0' then
-              opa(to_integer(ph)) <= tap_a;
-              opb(to_integer(ph)) <= tap_b;
+            if wr_pend = '0' then
+              for i in 0 to 31 loop
+                if ph1h(i) = '1' then
+                  opa(i) <= tap_a;
+                  opb(i) <= tap_b;
+                end if;
+              end loop;
               cnt <= cnt + 1;
               if cnt = 31 then
                 state <= S_RB;
@@ -1578,7 +1655,7 @@ begin
             if f_cond = '1' and flag = '0' then
               state <= S_NEXT;
             else
-              case op is
+              case op_q is
                 when OP_ADD | OP_SUB => acc <= add_s(31 downto 0);
                 when OP_OR   => acc <= opa or opb;
                 when OP_AND  => acc <= opa and opb;
@@ -1711,7 +1788,7 @@ begin
 
           when S_MEM =>
             if acc_done = '1' then
-              if op = OP_LOAD then
+              if op_q = OP_LOAD then
                 acc   <= acc_rdata;
                 state <= S_WB;
               else
@@ -1772,7 +1849,7 @@ entity tt_um_zonlykroks_cupu is
 end entity;
 
 architecture rtl of tt_um_zonlykroks_cupu is
-  signal rst : std_logic;
+  signal rst, rst_s : std_logic;
 
   signal mem_req, mem_we, mem_done : std_logic;
   signal mem_size  : std_logic_vector(1 downto 0);
@@ -1783,7 +1860,14 @@ architecture rtl of tt_um_zonlykroks_cupu is
   signal sck, mosi : std_logic;
   signal cs_n      : std_logic_vector(1 downto 0);
 begin
-  rst <= not rst_n;
+  -- reset synchronizer: keeps the reset pin out of every flop's timing path
+  process (clk)
+  begin
+    if rising_edge(clk) then
+      rst_s <= not rst_n;
+      rst   <= rst_s;
+    end if;
+  end process;
 
   u_core : entity work.cupu_core
     generic map (G_CLK_HZ => 25_000_000)
