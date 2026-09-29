@@ -27,13 +27,29 @@ func NewModel() model {
 	}
 }
 
+var box = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
+
+func runCPU(targetFreq uint32) {
+	lastTickTime := time.Now()
+	go func() {
+		for {
+			lastTickTime = time.Now()
+			cpu.Tick()
+			time.Sleep(time.Duration((time.Second/time.Duration(targetFreq) - time.Since(lastTickTime))))
+			cyclesSinceMeasurement += 1
+		}
+	}()
+}
+
 func (m model) Init() tea.Cmd {
 	regs1.SetCursor(-1)
 	regs2.SetCursor(-1)
+	ramTable.SetCursor(-1)
 	styles := table.DefaultStyles()
 	styles.Selected = lipgloss.NewStyle()
 	regs1.SetStyles(styles)
 	regs2.SetStyles(styles)
+	ramTable.SetStyles(styles)
 	return tea.Tick(16*time.Millisecond, func(time.Time) tea.Msg { return frameMsg{} })
 }
 
@@ -50,6 +66,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		regs = buildRegRows()
 		regs1.SetRows(regs[0])
 		regs2.SetRows(regs[1])
+		ramTable.SetRows(buildRamRows())
 
 		sinceLastMeasurement := time.Since(lastMeasurementTime)
 		if time.Duration(sinceLastMeasurement.Seconds()) > 1 {
@@ -68,17 +85,8 @@ func (m model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Top,
 		getInfo(),
 		lipgloss.JoinHorizontal(lipgloss.Top,
-			regs1.View(), regs2.View()))
+			box.Render(lipgloss.JoinHorizontal(lipgloss.Top,
+				regs1.View(), regs2.View())),
+			box.Render(ramTable.View())))
 }
 
-func runCPU(targetFreq uint32) {
-	lastTickTime := time.Now()
-	go func() {
-		for {
-			lastTickTime = time.Now()
-			cpu.Tick()
-			time.Sleep(time.Duration((time.Second/time.Duration(targetFreq) - time.Since(lastTickTime))))
-			cyclesSinceMeasurement += 1
-		}
-	}()
-}
