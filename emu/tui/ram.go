@@ -3,33 +3,29 @@ package tui
 import (
 	"emulator/hardware"
 	"fmt"
+	"strings"
 
-	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/lipgloss"
 )
 
-var ramTable = table.New(
-	table.WithColumns([]table.Column{
-		{Title: "Ram", Width: 10},
-		{Width: 2}, {Width: 2}, {Width: 2}, {Width: 2},
-		{Width: 2}, {Width: 2}, {Width: 2}, {Width: 2},
-		{Width: 2}, {Width: 2}, {Width: 2}, {Width: 2},
-		{Width: 2}, {Width: 2}, {Width: 2}, {Width: 2},
-	}),
-	table.WithFocused(false),
-	table.WithHeight(17),
-	table.WithRows(buildRamRows()),
-)
+var highlight = lipgloss.NewStyle().Background(lipgloss.Color("57")).Foreground(lipgloss.Color("229"))
 
-func buildRamRows() []table.Row {
-	rows := make([]table.Row, 16)
-	for i := range 16 {
-		row := table.Row{}
-		row = append(row, fmt.Sprintf("0x%08x", i*0x10))
+func buildRamTable() string {
+	var b strings.Builder
+	b.WriteString("Ram")
+	aRangeBase := prevPC & 0xFFFFFF00
+	for i := (int)(aRangeBase); i < (int)(aRangeBase)+16; i++ {
+		rowAddr := int(aRangeBase) + (i-int(aRangeBase))*0x10
+		b.WriteRune('\n')
+		fmt.Fprintf(&b, "0x%08x", rowAddr)
 		for j := range 16 {
-			row = append(row, fmt.Sprintf("%02x", hardware.Ram[i*0x10+j]))
+			cell := fmt.Sprintf("%02x", hardware.Ram[rowAddr+j])
+			if rowAddr+j >= int(prevPC) && rowAddr+j < int(prevPC)+4 {
+				cell = highlight.Render(cell)
+			}
+			b.WriteString(" ")
+			b.WriteString(cell)
 		}
-		rows[i] = row
 	}
-
-	return rows
+	return b.String()
 }
