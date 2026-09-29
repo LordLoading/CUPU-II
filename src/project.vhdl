@@ -66,10 +66,11 @@ end package;
 --   8   0x16  cos
 --   9   0x17  tan
 --
--- Everything is sequential around one 67-bit adder. Results are exact (correctly rounded)
--- for itof/ftoi/fadd/fsub/fmul/fdiv/sqrt, subnormals included. sin/cos/tan use Payne-Hanek
--- argument reduction and a 62-step CORDIC with 62 fraction bits; they are within 1 ulp and
--- almost always correctly rounded. Every NaN result is 0x7FC00000.
+-- Everything is sequential around one 67-bit adder, which is also the only path between
+-- the wide registers. Results are exact (correctly rounded) for itof/ftoi/fadd/fsub/fmul/
+-- fdiv/sqrt, subnormals included. sin/cos/tan use Payne-Hanek argument reduction and a
+-- 62-step CORDIC with 62 fraction bits; they are within 1 ulp and almost always correctly
+-- rounded. Every NaN result is 0x7FC00000.
 --
 -- a and b must stay stable from start until done.
 
@@ -107,17 +108,27 @@ architecture rtl of cupu_fpu is
   constant ONE_F   : std_logic_vector(31 downto 0) := x"3F800000";
   constant ONE_Q62 : unsigned(65 downto 0) := shift_left(to_unsigned(1, 66), 62);
 
+  -- Datapath: wide registers R, X, Y, Z, SH (66 bits) and W (92 bits). Data only moves
+  -- between them through the adder (rbus = A + (B xor inv) + inv). Otherwise a register
+  -- loads a constant or shifts itself by one bit, so all other wiring stays local; the
+  -- earlier version with many register-to-register paths did not route in GF180.
   type state_t is (
     F_IDLE, F_PRENORM,
-    F_ADD_ALIGN, F_ADD_SUM,
-    F_FTOI_SHIFT, F_FTOI_RND, F_FTOI_NEG,
-    F_MUL, F_DIV, F_SQRT,
-    F_TRIG_SMALL, F_PH, F_PH_SHIFT, F_PH_DONE, F_PIMUL, F_TRIG_START,
-    F_CA0, F_CSA, F_CA, F_CB0, F_CSB, F_CB, F_CC, F_TRIG_OUT, F_TAN1, F_TAN2,
+    F_ADD_LD1, F_ADD_LD2, F_ADD_POS, F_ADD_ALIGN, F_ADD_SUM,
+    F_FTOI_LD, F_FTOI_POS, F_FTOI_SHIFT, F_FTOI_RND, F_FTOI_NEG,
+    F_MUL_LD, F_MUL_ADD, F_MUL_SHR, F_MUL_MV, F_MUL_ASM,
+    F_DIV_LDX, F_DIV_LDY, F_DIV_POS, F_DIV, F_DIV_END,
+    F_SQ_LD, F_SQ_POS, F_SQ_S1, F_SQ_S2, F_SQ_CMP, F_SQ_END,
+    F_TS_LD, F_TRIG_SMALL, F_PH, F_PH_SHIFT, F_PH_MV, F_PH_ASR, F_PIM_ASR, F_PIM_ADD,
+    F_TRIG_START, F_C1, F_C1S, F_C2, F_C3, F_C3S, F_C4, F_C5, F_C6,
+    F_TRIG_OUT, F_TAN1, F_TAN1B, F_TAN2, F_TAN2B, F_TAN2C,
     F_NORM, F_ROUND, F_DONE
   );
   -- where F_NORM goes when it is done
   type cont_t is (C_ROUND, C_TAN1, C_TAN2);
+  -- adder operands
+  type asel_t is (AS_ZERO, AS_R, AS_X, AS_Y, AS_Z, AS_WTOP, AS_WLOW);
+  type bsel_t is (BS_ZERO, BS_X, BS_Y, BS_Z1, BS_SH, BS_ATAN, BS_MA, BS_MB, BS_SEXTA, BS_STK);
 
   subtype exp_t is integer range -1024 to 1023;
 
@@ -125,17 +136,18 @@ architecture rtl of cupu_fpu is
   signal cont  : cont_t;
   signal opn   : natural range 0 to 15;
 
-  signal R, X, Y, Z : unsigned(65 downto 0);
-  signal W          : unsigned(91 downto 0);  -- Payne-Hanek accumulator, CORDIC temp
-  signal ma, mb     : unsigned(23 downto 0);
-  signal ea, eb     : exp_t;
-  signal er, ed     : exp_t;  -- R's LSB has weight 2^(er - 65)
-  signal sr, stk    : std_logic;
-  signal effsub     : std_logic;
-  signal cnt        : unsigned(7 downto 0);
-  signal quad       : unsigned(1 downto 0);
-  signal res_r      : std_logic_vector(31 downto 0);
-  signal done_r     : std_logic;
+  signal R, X, Y, Z, SH : unsigned(65 downto 0);
+  signal W              : unsigned(91 downto 0);  -- Payne-Hanek accumulator
+  signal ma, mb         : unsigned(23 downto 0);
+  signal ea, eb         : exp_t;
+  signal er, ed         : exp_t;  -- R's LSB has weight 2^(er - 65)
+  signal sr, stk        : std_logic;
+  signal effsub, swap   : std_logic;
+  signal cnt            : unsigned(7 downto 0);
+  signal k              : unsigned(5 downto 0);
+  signal quad           : unsigned(1 downto 0);
+  signal res_r          : std_logic_vector(31 downto 0);
+  signal done_r         : std_logic;
 
   -- unpacked operands
   signal a_exp, b_exp   : unsigned(7 downto 0);
@@ -146,17 +158,18 @@ architecture rtl of cupu_fpu is
   signal a_zero, b_zero : std_logic;
   signal sa, sb, sbe    : std_logic;
 
-  -- shared adder: add_s = add_x + (add_y xor inv) + inv
-  signal add_x, add_y : unsigned(65 downto 0);
-  signal add_inv      : std_logic;
-  signal add_s        : unsigned(66 downto 0);
-  signal add_ge       : std_logic;  -- carry out: add_x >= add_y when subtracting
+  -- the adder
+  signal asel     : asel_t;
+  signal bsel     : bsel_t;
+  signal inv      : std_logic;
+  signal opa, opb : unsigned(65 downto 0);
+  signal sum      : unsigned(66 downto 0);
+  signal rbus     : unsigned(65 downto 0);
+  signal ge       : std_logic;  -- carry out: A >= B when subtracting
 
-  signal SH      : unsigned(65 downto 0);  -- CORDIC: X or Y >>> i, shifted one bit per cycle
-  signal k       : unsigned(5 downto 0);   -- bits left to shift
-  signal atan_i  : unsigned(65 downto 0);
+  signal atan_i   : unsigned(65 downto 0);
 
-  -- which CORDIC output F_TRIG_OUT / F_TAN1 convert: '1' = Y (sin r), '0' = X (cos r)
+  -- which CORDIC output F_TRIG_OUT / F_TAN1B convert: '1' = Y (sin r), '0' = X (cos r)
   signal is_sin, is_cos, is_tan, in_out, trig_use_y : std_logic;
 
   function unpack_e(e : unsigned(7 downto 0)) return exp_t is
@@ -194,7 +207,7 @@ begin
   is_tan <= '1' when opn = OP_TAN else '0';
   in_out <= '1' when state = F_TRIG_OUT else '0';
   -- sin: q even Y, odd X; cos: q even X, odd Y
-  -- tan: denominator (F_TRIG_OUT) q even X, odd Y; numerator (F_TAN1) the other one
+  -- tan: denominator (F_TRIG_OUT) q even X, odd Y; numerator (F_TAN1B) the other one
   trig_use_y <= (is_sin and not quad(0)) or (is_cos and quad(0)) or
                 (is_tan and not (in_out xor quad(0)));
 
@@ -210,92 +223,127 @@ begin
   end process;
 
   ---------------------------------------------------------------------------
-  -- shared adder operands
+  -- adder operand selection
   ---------------------------------------------------------------------------
-  process (state, opn, a, R, X, Y, Z, W, ma, mb, stk, effsub, cnt, SH, atan_i, trig_use_y)
-    variable v : unsigned(65 downto 0);
+  process (state, a, sa, swap, effsub, X, Y, Z, cnt, trig_use_y)
   begin
-    add_x   <= (others => '0');
-    add_y   <= (others => '0');
-    add_inv <= '0';
+    asel <= AS_ZERO;
+    bsel <= BS_ZERO;
+    inv  <= '0';
     case state is
-      when F_IDLE =>                              -- itof: |a|
-        add_y   <= unsigned(resize(signed(a), 66));
-        add_inv <= a(31);
+      when F_IDLE =>                                   -- itof: |a|
+        bsel <= BS_SEXTA;
+        inv  <= a(31);
+      when F_ADD_LD1 =>                                -- bigger operand
+        if swap = '1' then bsel <= BS_MB; else bsel <= BS_MA; end if;
+      when F_ADD_LD2 =>                                -- smaller operand
+        if swap = '1' then bsel <= BS_MA; else bsel <= BS_MB; end if;
       when F_ADD_SUM =>
-        add_x   <= R;
-        add_y   <= X;
-        add_inv <= effsub;
+        asel <= AS_R;
+        bsel <= BS_X;
+        inv  <= effsub;
+      when F_FTOI_LD | F_MUL_LD | F_DIV_LDX | F_SQ_LD | F_TS_LD =>
+        bsel <= BS_MA;
       when F_FTOI_RND =>
-        add_x    <= X;
-        add_y(0) <= stk;
+        asel <= AS_X;
+        bsel <= BS_STK;
       when F_FTOI_NEG =>
-        add_y   <= X;
-        add_inv <= sa;
-      when F_MUL =>
-        add_x <= resize(X(47 downto 24), 66);
-        if Y(0) = '1' then
-          add_y <= resize(mb, 66);
-        end if;
+        bsel <= BS_X;
+        inv  <= sa;
+      when F_MUL_ADD =>
+        asel <= AS_X;
+        bsel <= BS_MB;
+      when F_MUL_MV | F_C3 =>
+        asel <= AS_X;
+      when F_DIV_LDY =>
+        bsel <= BS_MB;
       when F_DIV =>
-        add_x   <= resize(X(34 downto 0), 66);
-        add_y   <= resize(Y(34 downto 0), 66);
-        add_inv <= '1';
-      when F_SQRT =>
-        add_x   <= resize(Y(31 downto 0) & X(55 downto 54), 66);
-        add_y   <= resize(Z(27 downto 0) & "01", 66);
-        add_inv <= '1';
+        asel <= AS_X;
+        bsel <= BS_Y;
+        inv  <= '1';
+      when F_SQ_CMP =>
+        asel <= AS_Y;
+        bsel <= BS_Z1;
+        inv  <= '1';
+      when F_SQ_END | F_TRIG_START | F_TAN2B =>
+        asel <= AS_Z;
       when F_PH =>
-        add_x <= resize(W(91 downto 68), 66);
+        asel <= AS_WTOP;
         if TWO_OVER_PI(to_integer(cnt)) = '1' then
-          add_y <= resize(ma, 66);
+          bsel <= BS_MA;
         end if;
-      when F_PIMUL =>
-        add_x <= Z(65) & Z(65 downto 1);
+      when F_PH_MV =>
+        asel <= AS_WLOW;
+      when F_PIM_ADD =>
+        asel <= AS_Z;
         if PI_HALF(to_integer(cnt(6 downto 0))) = '1' then
-          add_y <= X;
+          bsel <= BS_X;
         end if;
       -- CORDIC step, rotating towards z = 0:
       --   z >= 0: x -= y>>i, y += x>>i, z -= atan(2^-i)
       --   z <  0: x += y>>i, y -= x>>i, z += atan(2^-i)
-      when F_CA =>
-        add_x   <= X;
-        add_y   <= SH;
-        add_inv <= not Z(65);
-      when F_CB =>
-        add_x   <= Y;
-        add_y   <= SH;
-        add_inv <= Z(65);
-      when F_CC =>
-        add_x   <= Z;
-        add_y   <= atan_i;
-        add_inv <= not Z(65);
-      when F_TRIG_OUT | F_TAN1 =>
-        -- |value| to convert: sin/cos result, or tan's denominator (F_TRIG_OUT)
-        -- and numerator (F_TAN1). X = cos r, Y = sin r.
+      when F_C1 =>
+        asel <= AS_Y;
+      when F_C2 =>
+        asel <= AS_X;
+        bsel <= BS_SH;
+        inv  <= not Z(65);
+      when F_C4 =>
+        asel <= AS_Y;
+        bsel <= BS_SH;
+        inv  <= Z(65);
+      when F_C5 | F_TAN1 | F_TAN2 =>
+        asel <= AS_R;
+      when F_C6 =>
+        asel <= AS_Z;
+        bsel <= BS_ATAN;
+        inv  <= not Z(65);
+      when F_TRIG_OUT | F_TAN1B =>                     -- |x| or |y|
         if trig_use_y = '1' then
-          v := Y;
+          bsel <= BS_Y;
+          inv  <= Y(65);
         else
-          v := X;
+          bsel <= BS_X;
+          inv  <= X(65);
         end if;
-        add_y   <= v;
-        add_inv <= v(65);
       when others => null;
     end case;
   end process;
 
-  process (add_x, add_y, add_inv)
-    variable yy : unsigned(65 downto 0);
+  with asel select opa <=
+    (others => '0')          when AS_ZERO,
+    R                        when AS_R,
+    X                        when AS_X,
+    Y                        when AS_Y,
+    Z                        when AS_Z,
+    resize(W(91 downto 68), 66) when AS_WTOP,
+    W(65 downto 0)           when AS_WLOW;
+
+  with bsel select opb <=
+    (others => '0')                  when BS_ZERO,
+    X                                when BS_X,
+    Y                                when BS_Y,
+    Z(65 downto 1) & '1'             when BS_Z1,
+    SH                               when BS_SH,
+    atan_i                           when BS_ATAN,
+    resize(ma, 66)                   when BS_MA,
+    resize(mb, 66)                   when BS_MB,
+    unsigned(resize(signed(a), 66))  when BS_SEXTA,
+    (0 => stk, others => '0')        when BS_STK;
+
+  process (opa, opb, inv)
+    variable bb : unsigned(65 downto 0);
     variable c  : unsigned(66 downto 0);
   begin
-    yy := add_y;
-    if add_inv = '1' then
-      yy := not add_y;
+    bb := opb;
+    if inv = '1' then
+      bb := not opb;
     end if;
-    c := (0 => add_inv, others => '0');
-    add_s <= ('0' & add_x) + ('0' & yy) + c;
+    c := (0 => inv, others => '0');
+    sum <= ('0' & opa) + ('0' & bb) + c;
   end process;
-  add_ge <= add_s(66);
+  rbus <= sum(65 downto 0);
+  ge   <= sum(66);
 
   ---------------------------------------------------------------------------
   -- control
@@ -334,7 +382,7 @@ begin
                     res_r <= (others => '0');
                   else
                     sr    <= a(31);
-                    R     <= add_s(65 downto 0);
+                    R     <= rbus;
                     er    <= 65;
                     state <= F_NORM;
                   end if;
@@ -345,9 +393,8 @@ begin
                   elsif a_exp < 126 then          -- |a| < 0.5
                     res_r <= (others => '0');
                   else
-                    X     <= resize(a_m & x"00", 66);
                     cnt   <= to_unsigned(158, 8) - a_exp;
-                    state <= F_FTOI_SHIFT;
+                    state <= F_FTOI_LD;
                   end if;
 
                 when OP_FADD | OP_FSUB =>
@@ -359,27 +406,23 @@ begin
                     res_r <= sbe & b(30 downto 0);
                   else
                     big_is_a := unsigned(a(30 downto 0)) >= unsigned(b(30 downto 0));
-                    R <= (others => '0');
-                    X <= (others => '0');
                     if big_is_a then
-                      R(64 downto 41) <= a_m;
-                      X(64 downto 41) <= b_m;
-                      er <= a_e + 1;
-                      sr <= sa;
-                      d  := a_e - b_e;
+                      swap <= '0';
+                      er   <= a_e + 1;
+                      sr   <= sa;
+                      d    := a_e - b_e;
                     else
-                      R(64 downto 41) <= b_m;
-                      X(64 downto 41) <= a_m;
-                      er <= b_e + 1;
-                      sr <= sbe;
-                      d  := b_e - a_e;
+                      swap <= '1';
+                      er   <= b_e + 1;
+                      sr   <= sbe;
+                      d    := b_e - a_e;
                     end if;
                     if d > 50 then
                       d := 50;
                     end if;
                     cnt    <= to_unsigned(d, 8);
                     effsub <= sa xor sbe;
-                    state  <= F_ADD_ALIGN;
+                    state  <= F_ADD_LD1;
                   end if;
 
                 when OP_FMUL =>
@@ -427,10 +470,9 @@ begin
                       res_r <= a;
                     end if;
                   elsif a_exp < 126 then          -- |a| < 0.5: no reduction needed
-                    Z     <= resize(a_m, 66);
                     cnt   <= a_exp - 88;          -- Q3.62: m * 2^(exp - 150 + 62)
                     quad  <= "00";
-                    state <= F_TRIG_SMALL;
+                    state <= F_TS_LD;
                   else
                     W     <= (others => '0');
                     cnt   <= a_exp - 58;          -- highest 2/pi bit that matters
@@ -451,36 +493,36 @@ begin
             elsif mb(23) = '0' then
               mb <= mb(22 downto 0) & '0';
               eb <= eb - 1;
+            elsif opn = OP_FMUL then
+              state <= F_MUL_LD;
+            elsif opn = OP_FDIV then
+              state <= F_DIV_LDX;
             else
-              case opn is
-                when OP_FMUL =>
-                  X     <= (others => '0');
-                  Y     <= resize(ma, 66);
-                  cnt   <= to_unsigned(24, 8);
-                  state <= F_MUL;
-                when OP_FDIV =>
-                  X     <= resize(ma & "0000000000", 66);
-                  Y     <= resize(mb & "0000000000", 66);
-                  R     <= (others => '0');
-                  er    <= ea - eb + 38;
-                  cnt   <= to_unsigned(28, 8);
-                  state <= F_DIV;
-                when others =>                    -- sqrt
-                  if ea mod 2 = 0 then
-                    X  <= shift_left(resize(ma, 66), 31);
-                    er <= ea / 2 + 38;
-                  else
-                    X  <= shift_left(resize(ma, 66), 32);
-                    er <= (ea - 1) / 2 + 38;
-                  end if;
-                  Y     <= (others => '0');
-                  Z     <= (others => '0');
-                  cnt   <= to_unsigned(28, 8);
-                  state <= F_SQRT;
-              end case;
+              state <= F_SQ_LD;
             end if;
 
           -------------------------------------------------------------------
+          -- fadd / fsub: mantissas to bits 64..41 (room for the carry and 41 guard
+          -- bits), align the smaller one, add
+          -------------------------------------------------------------------
+          when F_ADD_LD1 =>
+            R     <= rbus;
+            state <= F_ADD_LD2;
+
+          when F_ADD_LD2 =>
+            X     <= rbus;
+            k     <= to_unsigned(41, 6);
+            state <= F_ADD_POS;
+
+          when F_ADD_POS =>
+            if k = 0 then
+              state <= F_ADD_ALIGN;
+            else
+              R <= R(64 downto 0) & '0';
+              X <= X(64 downto 0) & '0';
+              k <= k - 1;
+            end if;
+
           when F_ADD_ALIGN =>
             -- shift the smaller operand right, folding lost bits into bit 0
             if cnt = 0 then
@@ -491,13 +533,28 @@ begin
             end if;
 
           when F_ADD_SUM =>
-            R <= add_s(65 downto 0);
-            if add_s(65 downto 0) = 0 then
+            R <= rbus;
+            if rbus = 0 then
               sr <= sa and sbe;  -- exact zero: -0 only for (-0) + (-0)
             end if;
             state <= F_NORM;
 
           -------------------------------------------------------------------
+          -- ftoi: X = m << 8, shift right 31 - e keeping the 0.5 bit, round, negate
+          -------------------------------------------------------------------
+          when F_FTOI_LD =>
+            X     <= rbus;
+            k     <= to_unsigned(8, 6);
+            state <= F_FTOI_POS;
+
+          when F_FTOI_POS =>
+            if k = 0 then
+              state <= F_FTOI_SHIFT;
+            else
+              X <= X(64 downto 0) & '0';
+              k <= k - 1;
+            end if;
+
           when F_FTOI_SHIFT =>
             if cnt = 0 then
               state <= F_FTOI_RND;
@@ -508,65 +565,158 @@ begin
             end if;
 
           when F_FTOI_RND =>
-            X     <= add_s(65 downto 0);
+            X     <= rbus;
             state <= F_FTOI_NEG;
 
           when F_FTOI_NEG =>
-            res_r <= std_logic_vector(add_s(31 downto 0));
+            res_r <= std_logic_vector(rbus(31 downto 0));
             state <= F_DONE;
 
           -------------------------------------------------------------------
-          when F_MUL =>
-            -- shift-add: X(47:0) accumulates ma * mb, Y feeds ma's bits LSB first
-            if cnt = 0 then
-              R     <= X;
-              er    <= ea + eb + 19;
+          -- fmul: shift-add with the product's high half in X and its low half
+          -- shifting into the top of Y (which feeds ma's bits LSB first)
+          -------------------------------------------------------------------
+          when F_MUL_LD =>
+            X     <= (others => '0');
+            Y     <= rbus;
+            cnt   <= to_unsigned(24, 8);
+            state <= F_MUL_ADD;
+
+          when F_MUL_ADD =>
+            if Y(0) = '1' then
+              X <= rbus;
+            end if;
+            state <= F_MUL_SHR;
+
+          when F_MUL_SHR =>
+            X   <= '0' & X(65 downto 1);
+            Y   <= X(0) & Y(65 downto 1);
+            cnt <= cnt - 1;
+            if cnt = 1 then
+              state <= F_MUL_MV;
+            else
+              state <= F_MUL_ADD;
+            end if;
+
+          when F_MUL_MV =>
+            R     <= rbus;                          -- high half
+            k     <= to_unsigned(24, 6);
+            er    <= ea + eb + 19;
+            state <= F_MUL_ASM;
+
+          when F_MUL_ASM =>
+            if k = 0 then
               state <= F_NORM;
             else
-              X(47 downto 0) <= add_s(24 downto 0) & X(23 downto 1);
-              Y   <= '0' & Y(65 downto 1);
-              cnt <= cnt - 1;
+              R <= R(64 downto 0) & Y(65);          -- append the low half
+              Y <= Y(64 downto 0) & '0';
+              k <= k - 1;
+            end if;
+
+          -------------------------------------------------------------------
+          -- fdiv: restoring division of the mantissas placed at bit 64; the
+          -- quotient bits shift into R
+          -------------------------------------------------------------------
+          when F_DIV_LDX =>
+            X     <= rbus;
+            state <= F_DIV_LDY;
+
+          when F_DIV_LDY =>
+            Y     <= rbus;
+            k     <= to_unsigned(41, 6);
+            R     <= (others => '0');
+            er    <= ea - eb + 38;
+            cnt   <= to_unsigned(28, 8);
+            state <= F_DIV_POS;
+
+          when F_DIV_POS =>
+            if k = 0 then
+              state <= F_DIV;
+            else
+              X <= X(64 downto 0) & '0';
+              Y <= Y(64 downto 0) & '0';
+              k <= k - 1;
             end if;
 
           when F_DIV =>
-            -- restoring division; quotient bits shift into R
-            if cnt = 0 then
-              if X /= 0 then
-                stk <= '1';
-              end if;
-              state <= F_NORM;
+            R <= R(64 downto 0) & ge;
+            if ge = '1' then
+              X <= rbus(64 downto 0) & '0';
             else
-              R <= R(64 downto 0) & add_ge;
-              if add_ge = '1' then
-                X <= add_s(64 downto 0) & '0';
-              else
-                X <= X(64 downto 0) & '0';
-              end if;
-              cnt <= cnt - 1;
+              X <= X(64 downto 0) & '0';
+            end if;
+            cnt <= cnt - 1;
+            if cnt = 1 then
+              state <= F_DIV_END;
             end if;
 
-          when F_SQRT =>
-            -- digit by digit: two radicand bits per step from X, remainder Y, root Z
-            if cnt = 0 then
-              R <= Z;
-              if Y /= 0 then
-                stk <= '1';
-              end if;
-              state <= F_NORM;
-            else
-              if add_ge = '1' then
-                Y <= add_s(65 downto 0);
-              else
-                Y <= resize(Y(31 downto 0) & X(55 downto 54), 66);
-              end if;
-              Z   <= Z(64 downto 0) & add_ge;
-              X   <= X(63 downto 0) & "00";
-              cnt <= cnt - 1;
+          when F_DIV_END =>
+            if X /= 0 then
+              stk <= '1';
             end if;
+            state <= F_NORM;
+
+          -------------------------------------------------------------------
+          -- sqrt: digit by digit, two radicand bits per step from X into the
+          -- remainder Y; Z holds 4 * root so the trial value is just Z | 1
+          -------------------------------------------------------------------
+          when F_SQ_LD =>
+            X <= rbus;
+            Y <= (others => '0');
+            Z <= (others => '0');
+            if ea mod 2 = 0 then
+              k  <= to_unsigned(31, 6);
+              er <= ea / 2 + 36;
+            else
+              k  <= to_unsigned(32, 6);
+              er <= (ea - 1) / 2 + 36;
+            end if;
+            cnt   <= to_unsigned(28, 8);
+            state <= F_SQ_POS;
+
+          when F_SQ_POS =>
+            if k = 0 then
+              state <= F_SQ_S1;
+            else
+              X <= X(64 downto 0) & '0';
+              k <= k - 1;
+            end if;
+
+          when F_SQ_S1 | F_SQ_S2 =>
+            Y <= Y(64 downto 0) & X(55);
+            X <= X(64 downto 0) & '0';
+            if state = F_SQ_S1 then
+              state <= F_SQ_S2;
+            else
+              state <= F_SQ_CMP;
+            end if;
+
+          when F_SQ_CMP =>
+            if ge = '1' then
+              Y <= rbus;
+            end if;
+            Z   <= Z(64 downto 2) & ge & "00";      -- 4 * (2 * root + ge)
+            cnt <= cnt - 1;
+            if cnt = 1 then
+              state <= F_SQ_END;
+            else
+              state <= F_SQ_S1;
+            end if;
+
+          when F_SQ_END =>
+            R <= rbus;
+            if Y /= 0 then
+              stk <= '1';
+            end if;
+            state <= F_NORM;
 
           -------------------------------------------------------------------
           -- sin / cos / tan
           -------------------------------------------------------------------
+          when F_TS_LD =>
+            Z     <= rbus;
+            state <= F_TRIG_SMALL;
+
           when F_TRIG_SMALL =>
             if cnt = 0 then
               state <= F_TRIG_START;
@@ -578,7 +728,7 @@ begin
           when F_PH =>
             -- Payne-Hanek: W = sum of 2/pi bits * mantissa, LSB first, giving
             -- |a| * 2/pi mod 4 in Q2.66 (W(67 downto 0)) at the end
-            W <= add_s(24 downto 0) & W(67 downto 1);
+            W <= sum(24 downto 0) & W(67 downto 1);
             t := to_integer(a_exp) - 151;       -- lowest bit that matters, at least 1
             if t < 1 then
               t := 1;
@@ -596,93 +746,109 @@ begin
 
           when F_PH_SHIFT =>
             if cnt = 0 then
-              state <= F_PH_DONE;
+              state <= F_PH_MV;
             else
               W   <= '0' & W(91 downto 1);
               cnt <= cnt - 1;
             end if;
 
-          when F_PH_DONE =>
+          when F_PH_MV =>
             -- nearest quadrant, and the signed remainder in [-0.5, 0.5) quarter turns
             quad  <= W(67 downto 66) + ("0" & W(65));
-            X     <= (65 downto 62 => W(65)) & W(65 downto 4);  -- Q3.62, sign extended
-            Z     <= (others => '0');
-            cnt   <= to_unsigned(64, 8);
-            state <= F_PIMUL;
+            X     <= rbus;
+            k     <= to_unsigned(4, 6);
+            state <= F_PH_ASR;
 
-          when F_PIMUL =>
-            -- Z = X * pi/2, pi/2's bits LSB first
-            Z <= add_s(65 downto 0);
+          when F_PH_ASR =>
+            if k = 0 then                           -- X is now Q3.62
+              Z     <= (others => '0');
+              cnt   <= to_unsigned(64, 8);
+              state <= F_PIM_ASR;
+            else
+              X <= X(65) & X(65 downto 1);
+              k <= k - 1;
+            end if;
+
+          -- Z = X * pi/2, pi/2's bits LSB first
+          when F_PIM_ASR =>
+            Z     <= Z(65) & Z(65 downto 1);
+            state <= F_PIM_ADD;
+
+          when F_PIM_ADD =>
+            Z <= rbus;
             if cnt = 0 then
               state <= F_TRIG_START;
             else
-              cnt <= cnt - 1;
+              cnt   <= cnt - 1;
+              state <= F_PIM_ASR;
             end if;
 
           when F_TRIG_START =>
             -- Z = reduced angle r in radians, |r| <= pi/4
             if Z(65 downto 42) = 0 or not Z(65 downto 42) = 0 then
               X     <= ONE_Q62;     -- |r| < 2^-20: cos r = 1, sin r = r to well below 1 ulp
-              Y     <= Z;
+              Y     <= rbus;
               state <= F_TRIG_OUT;
             else
               X     <= CORDIC_K;
               Y     <= (others => '0');
               cnt   <= (others => '0');
-              state <= F_CA0;
+              state <= F_C1;
             end if;
 
-          -- x >>> i and y >>> i one bit per cycle: no 66-bit barrel shifter
-          -- (shifts are written out by hand; GHDL 4.1's Verilog turns signed >> into logical)
-          when F_CA0 =>
-            SH    <= Y;
+          -- one CORDIC iteration; R holds the new x until y has been updated
+          when F_C1 =>
+            SH    <= rbus;                          -- y
             k     <= cnt(5 downto 0);
-            state <= F_CSA;
+            state <= F_C1S;
 
-          when F_CSA =>
+          when F_C1S =>
             if k = 0 then
-              state <= F_CA;
+              state <= F_C2;
             else
               SH <= SH(65) & SH(65 downto 1);
               k  <= k - 1;
             end if;
 
-          when F_CA =>
-            W(65 downto 0) <= add_s(65 downto 0);   -- new X, parked
-            state          <= F_CB0;
+          when F_C2 =>
+            R     <= rbus;                          -- x -/+ y >>> i
+            state <= F_C3;
 
-          when F_CB0 =>
-            SH    <= X;                              -- X is still the old one
+          when F_C3 =>
+            SH    <= rbus;                          -- old x
             k     <= cnt(5 downto 0);
-            state <= F_CSB;
+            state <= F_C3S;
 
-          when F_CSB =>
+          when F_C3S =>
             if k = 0 then
-              state <= F_CB;
+              state <= F_C4;
             else
               SH <= SH(65) & SH(65 downto 1);
               k  <= k - 1;
             end if;
 
-          when F_CB =>
-            Y     <= add_s(65 downto 0);
-            state <= F_CC;
+          when F_C4 =>
+            Y     <= rbus;                          -- y +/- x >>> i
+            state <= F_C5;
 
-          when F_CC =>
-            X <= W(65 downto 0);
-            Z <= add_s(65 downto 0);
+          when F_C5 =>
+            X     <= rbus;
+            state <= F_C6;
+
+          when F_C6 =>
+            Z <= rbus;                              -- z -/+ atan(2^-i)
             if cnt = 61 then
               state <= F_TRIG_OUT;
             else
               cnt   <= cnt + 1;
-              state <= F_CA0;
+              state <= F_C1;
             end if;
 
           when F_TRIG_OUT =>
             -- sin: q0 +sin q1 +cos q2 -sin q3 -cos, then odd in a
             -- cos: q0 +cos q1 -sin q2 -cos q3 +sin
             -- tan: q even +sin/cos, q odd -cos/sin, then odd in a
-            -- the adder is already producing |value| (see operand process)
+            -- the adder is producing |value| (see operand selection)
             if opn = OP_TAN then
               if quad(0) = '0' then
                 nsign := Y(65);
@@ -700,23 +866,34 @@ begin
               if quad(0) = '0' then v := X; else v := Y; end if;
               sr <= v(65) xor (quad(1) xor quad(0));
             end if;
-            R     <= add_s(65 downto 0);
+            R     <= rbus;
             er    <= 3;
             stk   <= '0';
             state <= F_NORM;
 
           when F_TAN1 =>
-            -- normalised denominator is in R; park it in Z, normalise the numerator
-            Z     <= R;
+            -- normalised denominator is in R; park it in Z, then the numerator
+            Z     <= rbus;
             ed    <= er;
-            R     <= add_s(65 downto 0);
+            state <= F_TAN1B;
+
+          when F_TAN1B =>
+            R     <= rbus;
             er    <= 3;
             cont  <= C_TAN2;
             state <= F_NORM;
 
           when F_TAN2 =>
-            X     <= resize(R(65 downto 32), 66);
-            Y     <= resize(Z(65 downto 32), 66);
+            X     <= rbus;                          -- numerator
+            state <= F_TAN2B;
+
+          when F_TAN2B =>
+            Y     <= rbus;                          -- denominator
+            state <= F_TAN2C;
+
+          when F_TAN2C =>
+            X     <= '0' & X(65 downto 1);          -- both to bit 64 for the divider
+            Y     <= '0' & Y(65 downto 1);
             er    <= er - ed + 38;
             R     <= (others => '0');
             cnt   <= to_unsigned(28, 8);
@@ -902,9 +1079,9 @@ end architecture;
 
 -- CUPU-II "Stollentroll" core, multi-cycle implementation of isa.txt.
 --
--- Everything shares one 33-bit adder and one register-file read port; mul/div are
--- iterative (32 cycles) and shifts go one bit per cycle. Fetches over SPI take ~130
--- cycles anyway, so the extra cycles are cheap and the area savings are not.
+-- Everything shares one 33-bit adder; mul/div are iterative (32 cycles) and shifts go one
+-- bit per cycle. The register file is bit-serial (see below). Fetches over SPI take ~130
+-- cycles anyway, so the extra cycles are cheap and the area and wiring savings are not.
 -- Floating point ops (func 0x0E..0x17) run in cupu_fpu.
 --
 -- Differences from the Go emulator are listed in docs/info.md.
@@ -936,12 +1113,12 @@ end entity;
 
 architecture rtl of cupu_core is
   subtype word is unsigned(31 downto 0);
-  type regfile_t is array (0 to 31) of word;  -- entry 0 is constant zero
+  type ring_t is array (1 to 31) of word;
 
   type state_t is (
-    S_FETCH, S_RA, S_RB, S_EXEC, S_MEM, S_WB, S_WBJ, S_NEXT, S_JRAL,
+    S_FETCH, S_RD, S_RB, S_EXEC, S_MEM, S_WB, S_WBJ, S_NEXT, S_JRAL,
     S_MUL, S_DIV_NA, S_DIV_NB, S_DIV, S_DIV_FQ, S_DIV_FR, S_SHIFT, S_FPU,
-    S_CLEAR, S_HALT
+    S_HALT
   );
 
   type op_t is (
@@ -952,7 +1129,6 @@ architecture rtl of cupu_core is
 
   constant MMIO_BASE : unsigned(27 downto 0) := x"2000000";  -- addr(31 downto 4)
 
-  signal regs  : regfile_t;
   signal state : state_t;
   signal pc, ir, opa, opb, acc : word;
   signal cnt   : unsigned(4 downto 0);
@@ -965,15 +1141,21 @@ architecture rtl of cupu_core is
   signal f_fn   : unsigned(10 downto 0);
   signal op     : op_t;
 
-  signal rf_idx : unsigned(4 downto 0);
-  signal rf_rd  : word;
-  signal wr_en   : std_logic;
-  signal wr_idx  : unsigned(4 downto 0);
-  signal wr_data : word;
-  signal wr_gate : std_logic_vector(1 to 31);
-  signal rf_clk  : std_logic_vector(1 to 31);
-  signal wb_val : word;
-  signal pc_inc : word;
+  -- register file
+  signal rf       : ring_t;                     -- rf(r)(0) is bit ph of register r
+  signal ph       : unsigned(4 downto 0);
+  signal taps     : std_logic_vector(0 to 31);  -- taps(0) is $z
+  signal rb_idx   : unsigned(4 downto 0);
+  signal tap_a    : std_logic;
+  signal tap_b    : std_logic;
+  signal wr_start : std_logic;
+  signal wr_busy  : std_logic;
+  signal wr_all   : std_logic;                  -- clearing all registers after reset
+  signal wr_src   : std_logic;                  -- '1': value is in opa, '0': in acc
+  signal wr_idx   : unsigned(4 downto 0);
+  signal wr_cnt   : unsigned(4 downto 0);
+  signal wr_bit   : std_logic;
+  signal pc_inc   : word;
 
   -- shared adder: add_s = x + (y xor inv) + cin, 34 bits so bit 33 is the carry
   signal add_x, add_y : unsigned(32 downto 0);
@@ -1061,16 +1243,71 @@ begin
   end process;
 
   ---------------------------------------------------------------------------
-  -- register file (one read port, $0 reads as zero and is never written)
+  -- register file: each register is a ring of 32 flops rotating one bit per clock,
+  -- in step with the phase counter ph, so rf(r)(0) always holds bit ph of register r.
+  -- Reading $a and $b collects one bit of each per cycle for 32 cycles. Writing $t
+  -- replaces the bit re-entering its ring for 32 cycles; it runs in the background
+  -- while the next instruction is fetched. There are no word-wide multiplexers or
+  -- write-data broadcast, which is what made the parallel register file unroutable.
   ---------------------------------------------------------------------------
-  rf_idx <= f_a when state = S_RA else
-            f_t when op = OP_STORE else
-            f_b;
-  regs(0) <= (others => '0');
-  rf_rd   <= regs(to_integer(rf_idx));
+  taps(0) <= '0';
+  tap_gen : for r in 1 to 31 generate
+    taps(r) <= rf(r)(0);
+  end generate;
 
-  -- mul, div and udivi leave their result in opa; everything else in acc
-  wb_val <= opa when op = OP_MUL or op = OP_DIV or op = OP_DIVU else acc;
+  rb_idx <= f_t when op = OP_STORE else f_b;
+  tap_a  <= taps(to_integer(f_a));
+  tap_b  <= taps(to_integer(rb_idx));
+
+  wr_start <= '1' when (state = S_WB or state = S_WBJ) and f_t /= 0 else '0';
+  wr_bit   <= '0'                 when wr_all = '1' else
+              opa(to_integer(ph)) when wr_src = '1' else
+              acc(to_integer(ph));
+
+  process (clk)
+  begin
+    if rising_edge(clk) then
+      if rst = '1' then
+        ph      <= (others => '0');
+        wr_busy <= '1';                  -- clear all registers, as the emulator starts at 0
+        wr_all  <= '1';
+        wr_cnt  <= (others => '0');
+      else
+        ph <= ph + 1;
+        if wr_busy = '1' then
+          wr_cnt <= wr_cnt + 1;
+          if wr_cnt = 31 then
+            wr_busy <= '0';
+            wr_all  <= '0';
+          end if;
+        elsif wr_start = '1' then
+          -- mul, div and udivi leave their result in opa; everything else in acc
+          wr_busy <= '1';
+          wr_cnt  <= (others => '0');
+          wr_idx  <= f_t;
+          if op = OP_MUL or op = OP_DIV or op = OP_DIVU then
+            wr_src <= '1';
+          else
+            wr_src <= '0';
+          end if;
+        end if;
+      end if;
+    end if;
+  end process;
+
+  ring_gen : for r in 1 to 31 generate
+    process (clk)
+      variable din : std_logic;
+    begin
+      if rising_edge(clk) then
+        din := rf(r)(0);
+        if wr_busy = '1' and (wr_all = '1' or wr_idx = r) then
+          din := wr_bit;
+        end if;
+        rf(r) <= din & rf(r)(31 downto 1);
+      end if;
+    end process;
+  end generate;
 
   pc_inc <= pc + 4;
 
@@ -1287,41 +1524,6 @@ begin
   end process;
 
   ---------------------------------------------------------------------------
-  -- register file write; S_CLEAR zeroes it after reset, one register per cycle.
-  -- Each register has its own gated clock instead of 32 enable muxes (area and
-  -- routing). The gates are sampled on the falling edge, so they only change while
-  -- clk is low and the gated clocks cannot glitch; the write still lands on the
-  -- rising edge that ends S_WB / S_WBJ / S_CLEAR, as with an enable.
-  ---------------------------------------------------------------------------
-  wr_en   <= '1' when state = S_CLEAR or ((state = S_WB or state = S_WBJ) and f_t /= 0) else '0';
-  wr_idx  <= cnt when state = S_CLEAR else f_t;
-  wr_data <= (others => '0') when state = S_CLEAR else wb_val;
-
-  process (clk)
-  begin
-    if falling_edge(clk) then
-      for r in 1 to 31 loop
-        if wr_en = '1' and wr_idx = r then
-          wr_gate(r) <= '1';
-        else
-          wr_gate(r) <= '0';
-        end if;
-      end loop;
-    end if;
-  end process;
-
-  rf_write : for r in 1 to 31 generate
-    rf_clk(r) <= clk and wr_gate(r);
-
-    process (rf_clk(r))
-    begin
-      if rising_edge(rf_clk(r)) then
-        regs(r) <= wr_data;
-      end if;
-    end process;
-  end generate;
-
-  ---------------------------------------------------------------------------
   -- control
   ---------------------------------------------------------------------------
   process (clk)
@@ -1331,7 +1533,7 @@ begin
     if rising_edge(clk) then
       fpu_start <= '0';
       if rst = '1' then
-        state <= S_CLEAR;
+        state <= S_FETCH;
         cnt   <= (others => '0');
         pc    <= (others => '0');
         flag  <= '0';
@@ -1345,16 +1547,25 @@ begin
           when S_FETCH =>
             if acc_done = '1' then
               ir    <= acc_rdata;
-              state <= S_RA;
+              cnt   <= (others => '0');
+              state <= S_RD;
             end if;
 
-          when S_RA =>
-            opa   <= rf_rd;
-            state <= S_RB;
+          when S_RD =>
+            -- $a -> opa and $b (or $t for stores) -> opb, one bit per cycle, once the
+            -- previous instruction's write has gone in
+            if wr_busy = '0' then
+              opa(to_integer(ph)) <= tap_a;
+              opb(to_integer(ph)) <= tap_b;
+              cnt <= cnt + 1;
+              if cnt = 31 then
+                state <= S_RB;
+              end if;
+            end if;
 
           when S_RB =>
             if f_opc = 0 then
-              opb <= rf_rd;
+              null;                                                  -- opb = $b
             elsif f_opc(4 downto 3) = "11" then
               opb <= resize(ir(15 downto 0), 32);                    -- 0x18..0x1E
             else
@@ -1522,12 +1733,6 @@ begin
             if fpu_done = '1' then
               acc   <= unsigned(fpu_res);
               state <= S_WB;
-            end if;
-
-          when S_CLEAR =>
-            cnt <= cnt + 1;
-            if cnt = 31 then
-              state <= S_FETCH;
             end if;
 
           when S_HALT =>
