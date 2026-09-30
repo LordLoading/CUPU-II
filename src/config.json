@@ -27,6 +27,10 @@
     "nom_ff_n40C_3v60", "min_ff_n40C_3v60", "max_ff_n40C_3v60"
   ],
 
+  "//": "EXTRA_EXCLUDED_CELLS - The resizer used GF180's delay cells (dly*, 2-7 ns each) as",
+  "//": "fanout buffers; on the failing paths they were over half the delay. Plain buffers only.",
+  "EXTRA_EXCLUDED_CELLS": ["gf180mcu_fd_sc_mcu7t5v0__dly*"],
+
   "//": "Hold slack margin - Increase them in case you are getting hold violations.",
   "PL_RESIZER_HOLD_SLACK_MARGIN": 0.1,
   "GRT_RESIZER_HOLD_SLACK_MARGIN": 0.05,

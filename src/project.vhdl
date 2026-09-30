@@ -121,8 +121,8 @@ architecture rtl of cupu_fpu is
     F_ADD_LD1, F_ADD_LD2, F_ADD_POS, F_ADD_ALIGN, F_ADD_SUM,
     F_FTOI_LD, F_FTOI_POS, F_FTOI_SHIFT, F_FTOI_RND, F_FTOI_NEG,
     F_MUL_LD, F_MUL_ADD, F_MUL_SHR, F_MUL_MV, F_MUL_ASM,
-    F_DIV_LDX, F_DIV_LDY, F_DIV_POS, F_DIV, F_DIV_END,
-    F_SQ_LD, F_SQ_POS, F_SQ_S1, F_SQ_S2, F_SQ_CMP, F_SQ_END,
+    F_DIV_LDX, F_DIV_LDY, F_DIV_POS, F_DIV, F_DIV_UPD, F_DIV_END,
+    F_SQ_LD, F_SQ_POS, F_SQ_S1, F_SQ_S2, F_SQ_CMP, F_SQ_UPD, F_SQ_END,
     F_TS_LD, F_TRIG_SMALL, F_PH, F_PH_SHIFT, F_PH_MV, F_PH_ASR, F_PIM_ASR, F_PIM_ADD,
     F_TRIG_START, F_C1, F_C1S, F_C2, F_C3, F_C3S, F_C4, F_C5, F_C6,
     F_TRIG_OUT, F_TAN1, F_TAN1B, F_TAN2, F_TAN2B, F_TAN2C,
@@ -175,6 +175,7 @@ architecture rtl of cupu_fpu is
   signal cin_q    : std_logic;
   signal bus_st   : std_logic;              -- state uses rbus
   signal armed    : std_logic;              -- operands for this state are latched
+  signal geq      : std_logic;              -- ge, registered (div / sqrt steps)
 
   signal atan_i   : unsigned(65 downto 0);
 
@@ -680,16 +681,25 @@ begin
               k <= k - 1;
             end if;
 
+          -- the difference and the compare result are registered first, so the
+          -- adder's carry-out never has to steer 66 bits in the same cycle
           when F_DIV =>
-            R <= R(64 downto 0) & ge;
-            if ge = '1' then
-              X <= rbus(64 downto 0) & '0';
+            SH    <= rbus;
+            geq   <= ge;
+            state <= F_DIV_UPD;
+
+          when F_DIV_UPD =>
+            R <= R(64 downto 0) & geq;
+            if geq = '1' then
+              X <= SH(64 downto 0) & '0';
             else
               X <= X(64 downto 0) & '0';
             end if;
             cnt <= cnt - 1;
             if cnt = 1 then
               state <= F_DIV_END;
+            else
+              state <= F_DIV;
             end if;
 
           when F_DIV_END =>
@@ -734,10 +744,15 @@ begin
             end if;
 
           when F_SQ_CMP =>
-            if ge = '1' then
-              Y <= rbus;
+            SH    <= rbus;
+            geq   <= ge;
+            state <= F_SQ_UPD;
+
+          when F_SQ_UPD =>
+            if geq = '1' then
+              Y <= SH;
             end if;
-            Z   <= Z(64 downto 2) & ge & "00";      -- 4 * (2 * root + ge)
+            Z   <= Z(64 downto 2) & geq & "00";     -- 4 * (2 * root + ge)
             cnt <= cnt - 1;
             if cnt = 1 then
               state <= F_SQ_END;
