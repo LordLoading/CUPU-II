@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 
@@ -10,8 +11,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+var binPath = flag.String("bin", "out.bin", "path to binary file")
+var clockSpeed = flag.Int("clk", 1e6, "clock speed in Hz")
+
 func main() {
-	data, err := os.ReadFile("./out.bin")
+	flag.Parse()
+	data, err := os.ReadFile(*binPath)
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(1)
