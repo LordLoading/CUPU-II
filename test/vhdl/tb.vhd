@@ -1,7 +1,7 @@
 -- Testbench: TT top level + SPI models of the Pmod's flash and two PSRAMs (mode 0,
 -- commands 0x02/0x03; a write to the flash is an error). Loads prog.hex into RAM A and the
 -- flash at 0 (result area poisoned), drives the boot strap (G_BOOT), releases reset, plays the
--- keyboard protocol from cupu.py, waits for gpio = DONE, checks the CPU stays halted
+-- gpio input protocol from cupu.py, waits for gpio = DONE, checks the CPU stays halted
 -- and dumps G_NRES words from 0x100000 to results.txt.
 
 library ieee;
@@ -37,18 +37,14 @@ begin
     generic map (G_CLK_HZ => G_CLK_HZ)
     port map (ui_in, uo_out, uio_in, uio_out, uio_oe, '1', clk, rst_n);
 
-  -- keyboard protocol, see cupu.py
-  kbd : process
+  -- gpio input protocol, see cupu.py
+  gpin : process
   begin
     wait until rst_n = '1';
-    ui_in <= x"5A";
-    wait for 1 us;
-    ui_in <= x"DA";                                -- strobe KEY1 'Z'
-    wait until uo_out = x"3C";                     -- WAIT_KEY
-    wait for 200 us;                               -- the CPU has to sit blocked meanwhile
-    ui_in <= x"71";
-    wait for 1 us;
-    ui_in <= x"F1";                                -- strobe KEY2 'q'
+    ui_in <= x"A6";                                -- IN1
+    wait until uo_out = x"3C";                     -- WAIT_IN
+    wait for 200 us;                               -- the program keeps polling meanwhile
+    ui_in <= x"59";                                -- IN2
     wait;
   end process;
 

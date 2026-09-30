@@ -1169,7 +1169,7 @@ entity cupu_core is
     mem_rdata : in  std_logic_vector(31 downto 0);
     mem_done  : in  std_logic;
     -- mmio
-    kbd_in    : in  std_logic_vector(7 downto 0);
+    gpio_in   : in  std_logic_vector(7 downto 0);
     gpio_out  : out std_logic_vector(7 downto 0);
     boot      : in  std_logic                     -- start at 0x01000000 (flash) after reset
   );
@@ -1251,11 +1251,8 @@ architecture rtl of cupu_core is
   signal gpio      : std_logic_vector(7 downto 0);
   signal seconds   : word;
   signal ts_we     : std_logic;
-  signal kbd_sync  : std_logic_vector(2 downto 0);
-  signal kbd_data  : std_logic_vector(6 downto 0);
-  signal kbd_valid : std_logic;
-  signal kbd_hit   : std_logic;  -- current load reads the keyboard byte
-  signal kbd_take  : std_logic;
+  signal in_meta   : std_logic_vector(7 downto 0);  -- gpio input synchronizer
+  signal in_sync   : std_logic_vector(7 downto 0);
   signal prescale  : natural range 0 to G_CLK_HZ - 1;
 begin
   f_cond <= ir(31);
@@ -1516,30 +1513,10 @@ begin
   mem_addr  <= std_logic_vector(acc_addr(23 downto 0));
   mem_flash <= acc_addr(24);
   mem_wdata <= std_logic_vector(opb);
-  -- a load of the keyboard byte blocks until a key is there, like the emulator's channel
-  acc_done  <= '1' when flash_st = '1' else
-               mem_done when mmio_sel = '0' else
-               not (kbd_hit and not kbd_valid);
-  kbd_take  <= '1' when state = S_MEM and op_q = OP_LOAD and kbd_hit = '1' and kbd_valid = '1' else '0';
-
-  process (acc_addr, acc_size, state, op_q)
-    variable off, n : natural;
-  begin
-    off := to_integer(acc_addr(3 downto 0));
-    case acc_size is
-      when "00"   => n := 1;
-      when "01"   => n := 2;
-      when others => n := 4;
-    end case;
-    kbd_hit <= '0';
-    if acc_addr(31 downto 4) = MMIO_BASE and off <= 4 and off + n > 4
-       and not (state = S_MEM and op_q = OP_STORE) then
-      kbd_hit <= '1';
-    end if;
-  end process;
+  acc_done  <= mem_done when mmio_sel = '0' and flash_st = '0' else '1';
 
   -- mmio is read byte by byte like the emulator, so unaligned accesses behave the same
-  process (acc_addr, acc_size, seconds, kbd_data, gpio)
+  process (acc_addr, acc_size, seconds, in_sync, gpio)
     variable off : unsigned(4 downto 0);
     variable b   : std_logic_vector(7 downto 0);
     variable r   : std_logic_vector(31 downto 0);
@@ -1554,7 +1531,7 @@ begin
           when 1      => b := std_logic_vector(seconds(15 downto 8));
           when 2      => b := std_logic_vector(seconds(23 downto 16));
           when 3      => b := std_logic_vector(seconds(31 downto 24));
-          when 4      => b := '0' & kbd_data;
+          when 4      => b := in_sync;
           when 8      => b := gpio;
           when others => null;
         end case;
@@ -1598,24 +1575,13 @@ begin
   end process;
 
   ---------------------------------------------------------------------------
-  -- keyboard: a rising edge on ui_in(7) latches the 7-bit character on ui_in(6:0)
+  -- gpio inputs: the ui_in pins, two flops deep since they are asynchronous
   ---------------------------------------------------------------------------
   process (clk)
   begin
     if rising_edge(clk) then
-      if rst = '1' then
-        kbd_sync  <= (others => '0');
-        kbd_valid <= '0';
-        kbd_data  <= (others => '0');
-      else
-        kbd_sync <= kbd_sync(1 downto 0) & kbd_in(7);
-        if kbd_sync(1) = '1' and kbd_sync(2) = '0' then
-          kbd_data  <= kbd_in(6 downto 0);
-          kbd_valid <= '1';
-        elsif kbd_take = '1' then
-          kbd_valid <= '0';
-        end if;
-      end if;
+      in_meta <= gpio_in;
+      in_sync <= in_meta;
     end if;
   end process;
 
@@ -1855,10 +1821,10 @@ end architecture;
 
 -- Tiny Tapeout top level for CUPU-II.
 --
--- ui_in   : keyboard: a rising edge on ui_in(7) latches the character on ui_in(6:0),
---           read (blocking) at 0x20000004. ui_in(0) during reset is the boot strap:
---           high starts at 0x01000000 (flash), low at 0 (PSRAM).
--- uo_out  : gpio register, written/read at 0x20000008
+-- ui_in   : gpio inputs, read at 0x20000004 (synchronized, no waiting).
+--           ui_in(0) during reset is the boot strap: high starts at 0x01000000 (flash),
+--           low at 0 (PSRAM).
+-- uo_out  : gpio outputs, written/read back at 0x20000008
 -- uio     : TT QSPI Pmod in plain SPI mode (CS0 flash, CS1 RAM A, CS2 RAM B)
 --
 -- While rst_n is low every uio pin is an input, so the demo board's RP2040 can
@@ -1924,7 +1890,7 @@ begin
       mem_wdata => mem_wdata,
       mem_rdata => mem_rdata,
       mem_done  => mem_done,
-      kbd_in    => ui_in,
+      gpio_in   => ui_in,
       gpio_out  => uo_out,
       boot      => boot
     );

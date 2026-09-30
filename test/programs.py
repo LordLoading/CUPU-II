@@ -11,8 +11,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cupu import (  # noqa: E402
-    ADDI, CMP_OPS, DIVI, DONE, FAIL, FLASH, GPIO, HLT, I, I_OPS, JAL, JRAL, KBD, KEY1, KEY2, LB, LH,
-    LUI, LW, M, MULI, Prog, R, R_OPS, RES, SB, SH, SW, TIMESTAMP, UDIVI, WAIT_KEY, write_files,
+    ADDI, CMP_OPS, DIVI, DONE, FAIL, FLASH, GPIN, GPIO, HLT, I, I_OPS, IN1, IN2, JAL, JRAL, LB, LH,
+    LUI, LW, M, MULI, Prog, R, R_OPS, RES, SB, SH, SW, TIMESTAMP, UDIVI, WAIT_IN, write_files,
 )
 from fpu_ref import f2b, fpu  # noqa: E402
 
@@ -366,13 +366,31 @@ def p_mmio(rnd, quick):
         p.emit(R(3, 20, 0, LB if addr == 0x20000005 else LW))
         p.store_result(3, 0)
 
-    p.li(20, KBD)                             # KEY1 was strobed right after reset
+    for fn in (LB, LH, LW):                   # gpio inputs: ui_in = IN1 since reset
+        p.li(20, GPIN)
+        p.emit(R(3, 20, 0, fn))
+        p.store_result(3, IN1)                # bytes 5..7 read 0
+    p.li(20, GPIN)                            # the inputs cannot be written
+    p.li(21, 0x77777777)
+    p.emit(R(21, 20, 0, SW))
+    p.emit(R(21, 20, 0, SB))
     p.emit(R(3, 20, 0, LB))
-    p.store_result(3, KEY1)
-    p.gpio(WAIT_KEY)                          # the testbench sends KEY2 once it sees this
-    p.li(20, KBD)
-    p.emit(R(3, 20, 0, LW))                   # blocks until KEY2; bytes 5..7 read 0
-    p.store_result(3, KEY2)
+    p.store_result(3, IN1)
+    p.gpio(WAIT_IN)                           # the testbench switches ui_in to IN2 after a while
+    p.li(20, GPIN)
+    p.li(21, IN2)
+    p.li(22, 0)
+    loop = p.pc()                             # poll until the new value shows up
+    p.emit(I(ADDI, 22, 22, 1))
+    p.emit(R(3, 20, 0, LB))
+    p.emit(R(0, 3, 21, 0x21))                 # r3 != IN2
+    p.emit(I(JRAL, 0, 0, loop - p.pc(), cond=1))
+    p.store_result(3, IN2)
+    p.li(1, 2)                                # it took more than one read
+    p.emit(R(0, 22, 1, 0x23))                 # polls >= 2
+    p.emit(R(1, 0, 0, 0x00))
+    p.emit(I(ADDI, 1, 0, 1, cond=1))
+    p.store_result(1, 1)
     return p.finish()
 
 

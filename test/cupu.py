@@ -3,23 +3,24 @@
 Results are stored to the result area at RES (one word each). Every program ends
 by writing DONE to gpio and halting; if the CPU runs past the halt it writes FAIL.
 
-Keyboard protocol the testbenches follow:
-  - right after reset, strobe KEY1 (ui_in(7) rising edge, character on ui_in(6:0))
-  - when gpio reads WAIT_KEY, the program is blocked on the keyboard: strobe KEY2
+GPIO input protocol the testbenches follow:
+  - during reset, ui_in = the boot strap (1: boot from the flash, else 0)
+  - right after reset, ui_in = IN1
+  - when gpio reads WAIT_IN, the program is polling the inputs: after a while, ui_in = IN2
 """
 
 import os
 
 M = 0xFFFFFFFF
 RES = 0x100000
-KEY1 = 0x5A      # 'Z'
-KEY2 = 0x71      # 'q'
-WAIT_KEY = 0x3C
+IN1 = 0xA6       # ui_in after reset
+IN2 = 0x59       # ui_in once gpio reads WAIT_IN
+WAIT_IN = 0x3C
 DONE = 0xA5
 FAIL = 0xEE
 GPIO = 0x20000008
 TIMESTAMP = 0x20000000
-KBD = 0x20000004
+GPIN = 0x20000004   # ui_in, read only
 FLASH = 0x01000000   # the flash is mapped here, read only; the testbenches load prog.hex into it
 
 

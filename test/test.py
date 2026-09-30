@@ -13,7 +13,7 @@ from cocotb.triggers import ClockCycles, Timer
 
 import programs
 from check import check
-from cupu import DONE, KEY1, KEY2, WAIT_KEY, write_files
+from cupu import DONE, IN1, IN2, WAIT_IN, write_files
 
 GATES = os.environ.get("GATES") == "yes"
 CLK_NS = 50  # 20 MHz
@@ -24,13 +24,6 @@ def byte(sig):
         return int(sig.value)
     except ValueError:  # X or Z
         return None
-
-
-async def strobe_key(dut, ch):
-    dut.ui_in.value = ch
-    await ClockCycles(dut.clk, 10)
-    dut.ui_in.value = 0x80 | ch
-    await ClockCycles(dut.clk, 10)
 
 
 @cocotb.test()
@@ -52,16 +45,16 @@ async def test_program(dut, name):
     await ClockCycles(dut.clk, 5)
     dut.rst_n.value = 1
 
-    await strobe_key(dut, KEY1)
-    sent_key2 = False
+    dut.ui_in.value = IN1
+    sent_in2 = False
     for _ in range(4000 * 20):             # up to 4 s of simulated time
         g = byte(dut.uo_out)
         if g == DONE:
             break
-        if g == WAIT_KEY and not sent_key2:
-            await Timer(200, unit="us")    # the CPU has to sit blocked meanwhile
-            await strobe_key(dut, KEY2)
-            sent_key2 = True
+        if g == WAIT_IN and not sent_in2:
+            await Timer(200, unit="us")    # the program keeps polling meanwhile
+            dut.ui_in.value = IN2
+            sent_in2 = True
         await ClockCycles(dut.clk, 1000)
     assert byte(dut.uo_out) == DONE, f"program never finished (gpio = {dut.uo_out.value})"
 

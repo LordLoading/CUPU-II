@@ -45,8 +45,20 @@ bit-serial as well: its working values circulate in 66-bit shift rings through a
 | 0x00000000   | r/w    | PSRAM, 16 MiB                                               |
 | 0x01000000   | r      | SPI flash, 16 MiB (stores are ignored)                      |
 | 0x20000000   | r/w    | seconds counter (32 bit); a word store sets it, e.g. to unix time |
-| 0x20000004   | r      | keyboard: blocks until a key arrives, then returns it       |
-| 0x20000008   | r/w    | GPIO: drives `uo_out`                                       |
+| 0x20000004   | r      | GPIO inputs: the `ui_in` pins (never waits)                 |
+| 0x20000008   | r/w    | GPIO outputs: drives `uo_out`, reads back the last value written |
+
+### GPIO
+
+There are 8 inputs (`ui_in`) and 8 outputs (`uo_out`); on Tiny Tapeout their direction is fixed.
+A load from 0x20000004 returns the input pins as they were two clocks earlier (they pass through a
+synchronizer); a store to 0x20000008 sets the output pins. Each takes one instruction, so software
+can sample or toggle a pin roughly every 10 µs.
+
+For a bidirectional open-drain line (I²C, 1-Wire, a shared bus), pair an output with an input:
+put a diode from the line to the output pin (cathode at the output), a pull-up resistor on the
+line, and wire the input pin to the line. Writing 0 pulls the line low, writing 1 releases it, and
+the input reads what is on the line.
 
 ### Behaviour where isa.txt is silent or differs from the Go emulator
 
@@ -62,8 +74,7 @@ bit-serial as well: its working values circulate in 66-bit shift rings through a
   give 0x80000000. Every NaN result is 0x7FC00000.
 - `sin`/`cos`/`tan` are within 1 ulp of Go's `float32(math.Sin(float64(x)))`; in testing they matched
   exactly.
-- The keyboard holds one key; a second key before the first is read replaces it (the emulator
-  buffers 32).
+- There is no keyboard: 0x20000004 returns the `ui_in` pins at once instead of waiting for a key.
 - Comparisons are unsigned, as in the emulator.
 
 ## How to test
@@ -76,8 +87,8 @@ bit-serial as well: its working values circulate in 66-bit shift rings through a
 3. Release reset. The CPU clears its registers and starts fetching. A program that runs from the
    flash must be linked for 0x01000000 (`jal` targets are absolute) and keeps its writable data in
    the PSRAM.
-4. Type: put a 7-bit character on `ui_in[6:0]`, then raise `ui_in[7]`. Lower it again before the next key.
-5. Watch `uo_out`, which the program drives by writing to 0x20000008.
+4. Drive the inputs (the demo board's DIP switches or its RP2040 on `ui_in`) and watch `uo_out`,
+   for example on the demo board's 7-segment display.
 
 `test/` runs one small self-checking program per feature, including booting from the flash
 (cocotb + Icarus, `make` in `test/`; `python programs.py --list` lists them).
