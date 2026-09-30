@@ -1149,7 +1149,7 @@ use ieee.numeric_std.all;
 
 entity cupu_core is
   generic (
-    G_CLK_HZ : natural := 25_000_000  -- for the seconds counter at 0x20000000
+    G_CLK_HZ : natural := 20_000_000  -- for the seconds counter at 0x20000000
   );
   port (
     clk       : in  std_logic;
@@ -1885,7 +1885,7 @@ begin
   end process;
 
   u_core : entity work.cupu_core
-    generic map (G_CLK_HZ => 25_000_000)
+    generic map (G_CLK_HZ => 20_000_000)
     port map (
       clk       => clk,
       rst       => rst,

@@ -24,7 +24,7 @@ multiplexers:
   the next instruction is fetched.
 - The integer core has one shared 33-bit adder, a 32-cycle multiplier/divider and a
   one-bit-per-cycle shifter.
-- An instruction takes about 165 cycles, most of it the SPI fetch (~150k instructions/s at 25 MHz).
+- An instruction takes about 170 cycles, most of it the SPI fetch (~120k instructions/s at 20 MHz).
 
 The FPU implements all ten float ops (`itof`, `ftoi`, `fadd`, `fsub`, `fmul`, `fdiv`, `sqrt`, `sin`,
 `cos`, `tan`) on IEEE 754 binary32 with round to nearest even, subnormals included. Its wide

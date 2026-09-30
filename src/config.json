@@ -17,7 +17,7 @@
 
   "//": "CLOCK_PERIOD - Increase this in case you are getting setup time violations.",
   "//": "The value is in nanoseconds, so 20ns == 50MHz.",
-  "CLOCK_PERIOD": 40,
+  "CLOCK_PERIOD": 50,
 
   "//": "RSZ_CORNERS - Corners the resizer repairs timing for. Only tt setup violations fail the",
   "//": "flow; letting it chase the ss_125C corner (tens of ns short) ran gds past the 6 h limit.",
