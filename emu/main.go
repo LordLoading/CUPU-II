@@ -12,7 +12,7 @@ import (
 )
 
 var binPath = flag.String("bin", "out.bin", "path to binary file")
-var clockSpeed = flag.Int("clk", 1e6, "clock speed in Hz")
+var clock = flag.Int("clk", 1e6, "clock speed in Hz")
 
 func main() {
 	flag.Parse()
@@ -24,7 +24,7 @@ func main() {
 		copy(hardware.Ram[0x0000:], data)
 	}
 
-	m := tui.NewModel()
+	m := tui.NewModel((uint32)(*clock))
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	p.Run()
 }

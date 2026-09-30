@@ -1,7 +1,13 @@
 .segment main
 
 .text
-lui $1, 0x2000
-uori $1, $1, 0x0002
-lw $2, $1
-jal $0, $0, 0
+addi $2, $0, 0x2000
+addi $3, $0, loop1
+loop1:
+addi $1, $1, 1
+neq $1, $2
+!jal $0, $0
+loop2:
+addi $3, $0, loop2
+jal $0, $3
+
