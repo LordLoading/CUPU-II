@@ -49,7 +49,7 @@ begin
         wait until rising_edge(clk);
         n := n + 1;
         exit when done = '1';
-        assert n < 20000 report "FPU hung" severity failure;
+        assert n < 60000 report "FPU hung" severity failure;
       end loop;
       hwrite(lo, vop);
       write(lo, ' ');

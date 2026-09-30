@@ -1,8 +1,9 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
-/* Testbench for CUPU-II: the TT top level plus the two PSRAMs of the QSPI Pmod.
-   test.py loads the program with a pulse on `load` and reads memory back with `dump`.
+/* Testbench for CUPU-II: the TT top level plus the QSPI Pmod (flash and two PSRAMs).
+   test.py loads the program (into RAM A and the flash) with a pulse on `load` and reads
+   memory back with `dump`. flash_writes counts write commands sent to the flash (must be 0).
    The full program runs for millions of cycles, so waveforms are only written with
    `make PLUSARGS=+waves`.
 */
@@ -26,6 +27,7 @@ module tb ();
   wire [7:0] uio_oe;
   reg load = 0;
   reg dump = 0;
+  reg load_ram = 1;  // 0: program only in the flash (flash boot tests), RAM A code area zeroed
 `ifdef GL_TEST
   wire VPWR = 1'b1;
   wire VGND = 1'b0;
@@ -50,14 +52,25 @@ module tb ();
   wire mosi = uio_out[1];
   wire cs_a = uio_oe[6] ? uio_out[6] : 1'b1;
   wire cs_b = uio_oe[7] ? uio_out[7] : 1'b1;
-  wire miso_a, miso_b;
+  wire cs_f = uio_oe[0] ? uio_out[0] : 1'b1;
+  wire miso_a, miso_b, miso_f;
 
   psram ram_a (.cs_n(cs_a), .sck(sck), .mosi(mosi), .miso(miso_a));
   psram ram_b (.cs_n(cs_b), .sck(sck), .mosi(mosi), .miso(miso_b));
+  psram flash (.cs_n(cs_f), .sck(sck), .mosi(mosi), .miso(miso_f));
+  wire [31:0] flash_writes = flash.writes;
 
-  assign uio_in = {5'b0, (cs_a === 1'b0) ? miso_a : (cs_b === 1'b0) ? miso_b : 1'b0, 2'b0};
+  assign uio_in = {5'b0, (cs_a === 1'b0) ? miso_a : (cs_b === 1'b0) ? miso_b :
+                         (cs_f === 1'b0) ? miso_f : 1'b0, 2'b0};
 
-  always @(posedge load) $readmemh("prog.hex", ram_a.mem);
+  // a new program: poison the result area so a missing store cannot pass, then load
+  integer i;
+  always @(posedge load) begin
+    for (i = 'h40000; i < 'h44000; i = i + 1) ram_a.mem[i] = 32'hDEADDEAD;
+    if (load_ram) $readmemh("prog.hex", ram_a.mem);
+    else for (i = 0; i < 'h10000; i = i + 1) ram_a.mem[i] = 0;
+    $readmemh("prog.hex", flash.mem);
+  end
   // result area: byte address 0x100000, 64 KiB (the memory is word addressed)
   always @(posedge dump) $writememh("ram_dump.hex", ram_a.mem, 'h40000, 'h43fff);
 
@@ -79,6 +92,7 @@ module psram (
   reg [7:0] byte_in;
   integer n = 0;
   reg [AW-1:0] a;
+  integer writes = 0;
 
   initial miso = 0;
 
@@ -89,6 +103,7 @@ module psram (
       if (n < 8) cmd = {cmd[6:0], mosi};
       else if (n < 32) addr = {addr[22:0], mosi};
       else if (cmd == 8'h02) begin
+        if (n == 32) writes = writes + 1;
         byte_in = {byte_in[6:0], mosi};
         if ((n - 32) % 8 == 7) begin
           a = addr + (n - 32) / 8;

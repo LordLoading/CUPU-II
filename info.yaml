@@ -3,7 +3,7 @@ project:
   title:        "CUPU-II Stollentroll"      # Project title
   author:       "zOnlyKroks"      # Your name
   discord:      ""      # Your discord username, for communication and automatically assigning you a Tapeout role (optional)
-  description:  "32-bit CUPU-II CPU with FPU, running from SPI PSRAM on the QSPI Pmod"      # One line description of what your project does
+  description:  "32-bit CUPU-II CPU with FPU, running from the SPI flash or PSRAM on the QSPI Pmod"      # One line description of what your project does
   language:     "VHDL" # other examples include SystemVerilog, Amaranth, VHDL, etc
   clock_hz:     20000000       # Clock frequency in Hz (or 0 if not applicable)
 
@@ -23,7 +23,7 @@ project:
 # This section is for the datasheet/website. Use descriptive names (e.g., RX, TX, MOSI, SCL, SEG_A, etc.).
 pinout:
   # Inputs
-  ui[0]: "KEY0"
+  ui[0]: "KEY0 / BOOT_FLASH (during reset)"
   ui[1]: "KEY1"
   ui[2]: "KEY2"
   ui[3]: "KEY3"
@@ -43,12 +43,12 @@ pinout:
   uo[7]: "GPIO7"
 
   # Bidirectional pins
-  uio[0]: "FLASH_CS (held high)"
+  uio[0]: "FLASH_CS"
   uio[1]: "MOSI"
   uio[2]: "MISO"
   uio[3]: "SCK"
-  uio[4]: ""
-  uio[5]: ""
+  uio[4]: "SD2 (flash /WP, driven high)"
+  uio[5]: "SD3 (flash /HOLD, driven high)"
   uio[6]: "RAM_A_CS"
   uio[7]: "RAM_B_CS"
 

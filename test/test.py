@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-"""cocotb test for CUPU-II: runs the self-checking program from gen_test.py.
+"""cocotb tests for CUPU-II: one small self-checking program per feature (see programs.py).
 
-RTL runs the full program; gate level (GATES=yes) runs a smaller one, since the
-netlist simulates much slower.
+Gate level (GATES=yes) runs smaller versions of the same programs, since the netlist
+simulates much slower.
 """
 
 import os
@@ -11,11 +11,12 @@ import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles, Timer
 
+import programs
 from check import check
-from gen_test import DONE, KEY1, KEY2, WAIT_KEY, build, write_files
+from cupu import DONE, KEY1, KEY2, WAIT_KEY, write_files
 
 GATES = os.environ.get("GATES") == "yes"
-CLK_NS = 40  # 25 MHz
+CLK_NS = 50  # 20 MHz
 
 
 def byte(sig):
@@ -23,14 +24,6 @@ def byte(sig):
         return int(sig.value)
     except ValueError:  # X or Z
         return None
-
-
-async def wait_gpio(dut, value, timeout_ms):
-    for _ in range(timeout_ms * 25):
-        if byte(dut.uo_out) == value:
-            return
-        await ClockCycles(dut.clk, 1000)
-    assert False, f"timeout waiting for gpio = {value:#04x} (gpio = {dut.uo_out.value})"
 
 
 async def strobe_key(dut, ch):
@@ -41,35 +34,45 @@ async def strobe_key(dut, ch):
 
 
 @cocotb.test()
-async def test_program(dut):
-    prog = build(seed=1, quick=GATES)
+@cocotb.parametrize(name=[cocotb.Param(n, name=n) for n in programs.PROGRAMS])
+async def test_program(dut, name):
+    prog = programs.build(name, quick=GATES)
     write_files(prog, os.getcwd())
-    dut._log.info(f"{len(prog.words)} instructions, {len(prog.expected)} results")
+    dut._log.info(f"{name}: {len(prog.words)} instructions, {len(prog.expected)} results")
 
     cocotb.start_soon(Clock(dut.clk, CLK_NS, unit="ns").start())
     dut.ena.value = 1
-    dut.ui_in.value = 0
+    dut.ui_in.value = 1 if prog.boot_flash else 0   # boot strap, sampled during reset
     dut.rst_n.value = 0
     dut.load.value = 0
     dut.dump.value = 0
+    dut.load_ram.value = 0 if prog.boot_flash else 1   # flash boot: the code must come from the flash
     await ClockCycles(dut.clk, 5)
-    dut.load.value = 1
+    dut.load.value = 1                     # clears the result area and loads prog.hex
     await ClockCycles(dut.clk, 5)
     dut.rst_n.value = 1
 
     await strobe_key(dut, KEY1)
-    await wait_gpio(dut, WAIT_KEY, 1000)
-    dut._log.info("CPU waits for a key")
-    await Timer(200, unit="us")
-    await strobe_key(dut, KEY2)
+    sent_key2 = False
+    for _ in range(4000 * 20):             # up to 4 s of simulated time
+        g = byte(dut.uo_out)
+        if g == DONE:
+            break
+        if g == WAIT_KEY and not sent_key2:
+            await Timer(200, unit="us")    # the CPU has to sit blocked meanwhile
+            await strobe_key(dut, KEY2)
+            sent_key2 = True
+        await ClockCycles(dut.clk, 1000)
+    assert byte(dut.uo_out) == DONE, f"program never finished (gpio = {dut.uo_out.value})"
 
-    await wait_gpio(dut, DONE, 1000)
     await Timer(100, unit="us")
-    assert byte(dut.uo_out) == DONE, "CPU kept running after dividing by zero"
+    assert byte(dut.uo_out) == DONE, "CPU kept running after it should have halted"
+    assert int(dut.flash_writes.value) == 0, "the CPU sent a write command to the flash"
 
     dut.dump.value = 1
     await ClockCycles(dut.clk, 2)
-    words = [w for line in open("ram_dump.hex") for w in line.split("//")[0].split()]
+    with open("ram_dump.hex") as f:
+        words = [w for line in f for w in line.split("//")[0].split()]
     with open("results.txt", "w") as f:
         f.write("\n".join(words) + "\n")
     assert check("expected.txt", "results.txt", dut._log.info), "wrong results"
