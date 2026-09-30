@@ -32,10 +32,11 @@
   "EXTRA_EXCLUDED_CELLS": ["gf180mcu_fd_sc_mcu7t5v0__dly*"],
 
   "//": "Hold slack margin - Increase them in case you are getting hold violations.",
-  "//": "At 4x2 routing detours cost the flop-to-flop shift chains up to 0.18 ns of ff hold",
-  "//": "slack after the post-CTS repair, so repair again on the global route (setup slack is ~11 ns).",
-  "PL_RESIZER_HOLD_SLACK_MARGIN": 0.2,
-  "GRT_RESIZER_HOLD_SLACK_MARGIN": 0.15,
+  "//": "At 4x2 routing detours cost a few of the ~1300 flop-to-flop shift-chain links up to",
+  "//": "0.18 ns of ff hold slack after the post-CTS repair. A bigger post-CTS margin buffers most",
+  "//": "links and congests routing, so keep it and repair again on the global route instead.",
+  "PL_RESIZER_HOLD_SLACK_MARGIN": 0.1,
+  "GRT_RESIZER_HOLD_SLACK_MARGIN": 0.1,
   "RUN_POST_GRT_RESIZER_TIMING": 1,
 
   "//": "RUN_LINTER, LINTER_INCLUDE_PDK_MODELS - Disabling the linter is not recommended!",
