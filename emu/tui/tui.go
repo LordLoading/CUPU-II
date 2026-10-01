@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var targetCyclesPerSecond uint32 = clockSpeed
+// var targetCyclesPerSecond uint32 = 0
 var cyclesSinceMeasurement uint32 = 0
 var lastMeasurementTime time.Time = time.Now()
 var clockSpeed uint32 = 0
@@ -21,8 +21,8 @@ type model struct {
 
 type frameMsg struct{}
 
-func NewModel() model {
-	runCPU(targetCyclesPerSecond)
+func NewModel(targetFreq uint32) model {
+	runCPU(targetFreq)
 	return model{
 		// model: regTables,
 	}
