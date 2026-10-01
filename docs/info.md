@@ -22,8 +22,8 @@ Program and data live on the Tiny Tapeout QSPI Pmod, accessed in plain SPI mode 
 After reset the registers are cleared and execution starts at address 0 (PSRAM), or at 0x01000000
 (flash) if `ui_in[0]` was high while `rst_n` was low.
 
-The design is built for a small area in sky130 (4x2 tiles), so it trades speed for size and
-avoids wide multiplexers:
+The design is built to route in GF180 with its three routing layers, so it avoids wide
+multiplexers:
 
 - The register file is bit-serial: each register is a ring of 32 flip-flops rotating one bit per
   clock. Reading `$a` and `$b` takes 32 cycles; writing `$t` takes 32 cycles in the background while
