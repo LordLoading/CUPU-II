@@ -19,25 +19,12 @@
   "//": "The value is in nanoseconds, so 20ns == 50MHz.",
   "CLOCK_PERIOD": 50,
 
-  "//": "RSZ_CORNERS - Corners the resizer repairs timing for. Only tt setup violations fail the",
-  "//": "flow; letting it chase the ss_125C corner (tens of ns short) ran gds past the 6 h limit.",
-  "//": "ff is kept for hold repair.",
-  "RSZ_CORNERS": [
-    "nom_tt_025C_3v30", "min_tt_025C_3v30", "max_tt_025C_3v30",
-    "nom_ff_n40C_3v60", "min_ff_n40C_3v60", "max_ff_n40C_3v60"
-  ],
-
-  "//": "EXTRA_EXCLUDED_CELLS - The resizer used GF180's delay cells (dly*, 2-7 ns each) as",
-  "//": "fanout buffers; on the failing paths they were over half the delay. Plain buffers only.",
-  "EXTRA_EXCLUDED_CELLS": ["gf180mcu_fd_sc_mcu7t5v0__dly*"],
-
   "//": "Hold slack margin - Increase them in case you are getting hold violations.",
-  "//": "At 4x2 the ~1300 flop-to-flop shift-chain links sit at 0.1-0.2 ns of ff hold slack and",
-  "//": "routing costs a few of them up to 0.18 ns more. A 0.2 ns post-CTS margin buffered 1056",
-  "//": "links and congested routing; repairing on the global route with 0.1 left 4 links up to",
-  "//": "0.11 ns short (worst -12 ps). 0.15 there covers that, about 170 links sit below it.",
+  "//": "The bit-serial design has ~1300 flop-to-flop shift-chain links; on GF180 4x2 routing",
+  "//": "detours pushed a few of them below 0 after the post-CTS repair. Repairing once more on",
+  "//": "the global route catches those without buffering every link.",
   "PL_RESIZER_HOLD_SLACK_MARGIN": 0.1,
-  "GRT_RESIZER_HOLD_SLACK_MARGIN": 0.15,
+  "GRT_RESIZER_HOLD_SLACK_MARGIN": 0.1,
   "RUN_POST_GRT_RESIZER_TIMING": 1,
 
   "//": "SYNTH_AUTONAME - name cells after the nets they drive (u_core.u_fpu...) instead of _12345_.",
