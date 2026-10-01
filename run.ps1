@@ -13,4 +13,4 @@ if (Test-Path -LiteralPath $OutDir -PathType Container) {
 
 & .\assemble.ps1 $AssembleDir
 
-& .\emu\emulator.exe .\out\out.bin
+& .\emu\emulator.exe -bin .\out\out.bin
