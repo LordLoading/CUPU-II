@@ -582,6 +582,26 @@ begin
       if rst = '1' then
         state <= F_IDLE;
         ph    <= (others => '0');
+        -- not needed by the logic (each op sets what it reads), but without it gate-level
+        -- simulation never resolves the X these start with: e.g. nn's clear in F_PH_WAIT
+        -- maps to not(nn0) and nn0, which a simulator cannot reduce to 0
+        nn      <= (others => '0');
+        nt      <= (others => '0');
+        cnt     <= (others => '0');
+        quad    <= "00";
+        sh      <= (others => '0');
+        t66     <= '0';
+        t67     <= '0';
+        tiny    <= '0';
+        pd      <= 0;
+        stk     <= '0';
+        sr      <= '0';
+        swap    <= '0';
+        effsub  <= '0';
+        asticky <= '0';
+        nxt     <= F_IDLE;
+        moff    <= 0;
+        er      <= 0;
       else
         case state is
           -------------------------------------------------------------------
