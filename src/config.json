@@ -30,6 +30,12 @@
   "//": "SYNTH_AUTONAME - name cells after the nets they drive (u_core.u_fpu...) instead of _12345_.",
   "SYNTH_AUTONAME": 1,
 
+  "//": "SYNTH_EXCLUDED_CELL_FILE - The PDK's default list (openlane/no_synth.cells) also bans 141",
+  "//": "drive-strength-1 cells (dfxtp_1, nand2_1, ...), so everything is mapped to _2 cells: 95k um2,",
+  "//": "too full for 4x2. Newer LibreLane PDK configs dropped that ban. This list keeps every other",
+  "//": "exclusion of the old list, the newer clock/delay/probe exclusions and the PnR DRC list.",
+  "SYNTH_EXCLUDED_CELL_FILE": "dir::synth_excluded.cells",
+
   "//": "RUN_LINTER, LINTER_INCLUDE_PDK_MODELS - Disabling the linter is not recommended!",
   "RUN_LINTER": 1,
   "LINTER_INCLUDE_PDK_MODELS": 1,
