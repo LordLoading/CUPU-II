@@ -93,8 +93,8 @@ ObjFile[string] applyRelocations(ObjFile[string] o) {
                     }
                 }
             } else {
-                foreach (Label l; o[labelStr[0]].labels) {
-                    if (l.name == labelStr[1]) {
+                foreach (Label l; oFile.labels) {
+                    if (l.name == labelStr[0]) {
                         label = l;
                         foundLabel = true;
                         break;
@@ -102,8 +102,8 @@ ObjFile[string] applyRelocations(ObjFile[string] o) {
                 }
 
                 if (foundLabel) {
-                    foreach (Constant c; o[labelStr[0]].constants) {
-                        if (c.name == labelStr[1]) {
+                    foreach (Constant c; oFile.constants) {
+                        if (c.name == labelStr[0]) {
                             constant = c;
                             foundConstant = true;
                             break;
