@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# for transparency, this script is written by ai because i'm a lazy bastard
 set -euo pipefail
 
 ASSEMBLE_DIR="${1:-.}"
@@ -12,4 +13,4 @@ fi
 ./assemble.sh "$ASSEMBLE_DIR"
 
 # Run the assembled binary in the emulator
-./emu/emulator ./out/out.bin
+./emu/emulator -bin ./out/out.bin
