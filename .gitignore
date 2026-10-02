@@ -32,3 +32,9 @@ test/ram_dump.hex
 test/vhdl/*.txt
 test/vhdl/prog.hex
 test/vhdl/work-obj08.cf
+
+# Vivado (fpga/basys3/create_project.tcl regenerates the project)
+/fpga/basys3/vivado/
+.Xil/
+vivado*.jou
+vivado*.log

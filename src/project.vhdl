@@ -1072,7 +1072,7 @@ end entity;
 architecture rtl of cupu_spi is
   type state_t is (S_IDLE, S_XFER, S_GAP);
   signal state  : state_t;
-  signal sreg   : std_logic_vector(31 downto 0);
+  signal sreg   : std_logic_vector(31 downto 0);  -- after a read: the data, last byte in 7..0
   signal bitcnt : unsigned(5 downto 0);
   signal sck_r  : std_logic;
   signal cs_r   : std_logic_vector(2 downto 0);
@@ -1082,6 +1082,12 @@ begin
   sck  <= sck_r;
   mosi <= sreg(31);
   cs_n <= cs_r;
+
+  -- the data read, little endian; valid with done and until the next request
+  with size select rdata <=
+    x"000000" & sreg(7 downto 0)                                          when "00",
+    x"0000" & sreg(7 downto 0) & sreg(15 downto 8)                         when "01",
+    sreg(7 downto 0) & sreg(15 downto 8) & sreg(23 downto 16) & sreg(31 downto 24) when others;
 
   -- index of the final bit: 32 command/address bits + 8, 16 or 32 data bits
   with size select last <=
@@ -1098,7 +1104,6 @@ begin
         state <= S_IDLE;
         sck_r <= '0';
         cs_r  <= "111";
-        rdata <= (others => '0');
       else
         case state is
           when S_IDLE =>
@@ -1125,11 +1130,7 @@ begin
               sck_r <= '0';
               sh := sreg(30 downto 0) & miso;
               if bitcnt = last then
-                case size is
-                  when "00"   => rdata <= x"000000" & sh(7 downto 0);
-                  when "01"   => rdata <= x"0000" & sh(7 downto 0) & sh(15 downto 8);
-                  when others => rdata <= sh(7 downto 0) & sh(15 downto 8) & sh(23 downto 16) & sh(31 downto 24);
-                end case;
+                sreg  <= sh;
                 cs_r  <= "111";
                 done  <= '1';
                 gap   <= (others => '1');
@@ -1161,9 +1162,12 @@ end architecture;
 
 -- CUPU-II "Stollentroll" core, multi-cycle implementation of isa.txt.
 --
--- Everything shares one 33-bit adder; mul/div are iterative (32 cycles) and shifts go one
--- bit per cycle. The register file is bit-serial (see below). Fetches over SPI take ~130
--- cycles anyway, so the extra cycles are cheap and the area and wiring savings are not.
+-- Bit-serial: the registers are rings of flops that rotate one bit per clock (see below),
+-- and all integer arithmetic goes through one 1-bit adder. An instruction's operands stream
+-- out of the rings LSB first in one 32-cycle pass, and add, sub, the logic ops, compares,
+-- lui and the jump targets are computed on the way. mul and div take one 33-cycle pass per
+-- bit, shifts one cycle per bit. Fetches over SPI take ~130 cycles anyway, so the extra
+-- cycles are cheap; the area is not.
 -- Floating point ops (func 0x0E..0x17) run in cupu_fpu.
 --
 -- Differences from the Go emulator are listed in docs/info.md.
@@ -1200,8 +1204,9 @@ architecture rtl of cupu_core is
   type ring_t is array (1 to 31) of word;
 
   type state_t is (
-    S_FETCH, S_RD, S_RB, S_EXEC, S_MEM, S_WB, S_WBJ, S_NEXT, S_JRAL,
-    S_MUL, S_DIV_NA, S_DIV_NB, S_DIV, S_DIV_FQ, S_DIV_FR, S_SHIFT, S_FPU,
+    S_FETCH, S_SYNC, S_RD, S_WB, S_WBJ, S_NEXT, S_MEM, S_FPU,
+    S_SH0, S_SH1, S_SH2, S_MUL, S_COPY,
+    S_DIV0, S_NEGA, S_NEGB, S_DIV, S_DIVC, S_DIVF,
     S_HALT
   );
 
@@ -1213,10 +1218,23 @@ architecture rtl of cupu_core is
 
   constant MMIO_BASE : unsigned(27 downto 0) := x"2000000";  -- addr(31 downto 4)
 
+  function b2n(b : std_logic) return natural is
+  begin
+    if b = '1' then return 1; else return 0; end if;
+  end function;
+
   signal state : state_t;
-  signal pc, ir, opa, opb, acc : word;
-  signal cnt   : unsigned(4 downto 0);
-  signal flag, sgn_q, sgn_r    : std_logic;
+  -- pc, ir: parallel. opa, opb: the operands, shifted in LSB first by the read pass and
+  -- then used in parallel (memory address and data, fpu inputs) or as shift registers
+  -- (mul, div, shifts). wr_sh: the result, written into its register ring LSB first.
+  signal pc, ir, opa, opb, wr_sh : word;
+  signal k     : unsigned(5 downto 0);   -- bit within a pass
+  signal step  : unsigned(4 downto 0);   -- mul / div step
+  signal flag, sgn_q, sgn_r : std_logic;
+  signal eqf   : std_logic;              -- read pass: $a equal to the operand so far
+  signal nzb   : std_logic;              -- read pass: operand not zero so far
+  signal accs, opas, lowb : std_logic;   -- mul: signs of the partial product and $a, product bit
+  signal rs, dly, odly    : std_logic;   -- div: remainder sign, remainder / dividend delayed
 
   -- instruction fields
   signal f_cond : std_logic;
@@ -1224,10 +1242,11 @@ architecture rtl of cupu_core is
   signal f_t, f_a, f_b : unsigned(4 downto 0);
   signal f_fn   : unsigned(10 downto 0);
   signal op     : op_t;
+  signal op_q   : op_t;                         -- op, registered
 
   -- register file
-  signal rf       : ring_t;                     -- rf(r)(0) is bit `phase` of register r
-  signal ph1h     : std_logic_vector(0 to 31);  -- phase, one-hot
+  signal rf       : ring_t;                     -- rf(r)(0) is bit `ph` of register r
+  signal ph       : unsigned(4 downto 0);       -- phase
   signal taps     : std_logic_vector(0 to 31);  -- taps(0) is $z
   signal rb_idx   : unsigned(4 downto 0);
   signal tap_a    : std_logic;
@@ -1236,20 +1255,15 @@ architecture rtl of cupu_core is
   signal wr_pend  : std_logic;                  -- a write is waiting or running
   signal wr_run   : std_logic;                  -- writing, phase 0..31
   signal wr_all   : std_logic;                  -- clearing all registers after reset
-  signal wr_sh    : word;                       -- value being written, LSB first
-  signal wr_sel   : std_logic_vector(1 to 31);  -- register being written, one-hot
-  signal op_q     : op_t;                       -- op, registered
+  signal wr_t     : unsigned(4 downto 0);       -- register being written
   signal pc_inc   : word;
 
-  -- shared adder: add_s = x + (y xor inv) + cin, 34 bits so bit 33 is the carry.
-  -- The operands are registered; states that use add_s take two cycles (see control).
-  signal add_x, add_y : unsigned(32 downto 0);
-  signal add_inv, add_cin : std_logic;
-  signal add_xq, add_yq : unsigned(32 downto 0);
-  signal add_cq  : std_logic;
-  signal add_s   : unsigned(33 downto 0);
-  signal bus_st  : std_logic;
-  signal armed   : std_logic;
+  -- serial adder: sum = x + (y xor inv) + z + carry, carry 0..2 (z: jral adds pc as well)
+  signal s_x, s_y, s_z, s_inv, s_cin : std_logic;
+  signal s_sum  : std_logic;
+  signal s_cy   : unsigned(1 downto 0);
+  signal cy     : unsigned(1 downto 0);
+  signal ir_k, imm_bit, lui_bit, y_rd : std_logic;
 
   -- memory access
   signal acc_addr  : word;
@@ -1331,19 +1345,17 @@ begin
 
   ---------------------------------------------------------------------------
   -- register file: each register is a ring of 32 flops rotating one bit per clock,
-  -- in step with the one-hot phase ph1h, so rf(r)(0) always holds bit `phase` of
-  -- register r. Reading $a and $b collects one bit of each per cycle for 32 cycles.
-  -- Writing $t shifts the value out of wr_sh into its ring during phases 0..31; it
-  -- runs in the background while the next instruction is fetched. There are no
-  -- word-wide multiplexers or write-data broadcast, which is what made the parallel
-  -- register file unroutable.
+  -- in step with the phase ph, so rf(r)(0) always holds bit ph of register r. The read
+  -- pass starts at phase 0 and takes one bit of $a and $b per cycle. Writing $t shifts
+  -- the value out of wr_sh into its ring during phases 0..31; it runs in the background
+  -- while the next instruction is fetched (which takes longer, so ir and wr_t hold).
   ---------------------------------------------------------------------------
   taps(0) <= '0';
   tap_gen : for r in 1 to 31 generate
     taps(r) <= rf(r)(0);
   end generate;
 
-  rb_idx <= f_t when op = OP_STORE else f_b;
+  rb_idx <= f_t when op_q = OP_STORE else f_b;
   tap_a  <= taps(to_integer(f_a));
   tap_b  <= taps(to_integer(rb_idx));
 
@@ -1352,41 +1364,26 @@ begin
   process (clk)
   begin
     if rising_edge(clk) then
-      op_q <= op;
       if rst = '1' then
-        ph1h    <= (0 => '1', others => '0');
+        ph      <= (others => '0');
         wr_pend <= '1';                  -- clear all registers, as the emulator starts at 0
         wr_run  <= '0';
         wr_all  <= '1';
-        wr_sh   <= (others => '0');
       else
-        ph1h <= ph1h(31) & ph1h(0 to 30);
+        ph <= ph + 1;
         if wr_run = '1' then
-          wr_sh <= '0' & wr_sh(31 downto 1);
-          if ph1h(31) = '1' then
+          if ph = 31 then
             wr_run  <= '0';
             wr_pend <= '0';
             wr_all  <= '0';
           end if;
         elsif wr_pend = '1' then
-          if ph1h(31) = '1' then
+          if ph = 31 then
             wr_run <= '1';               -- next cycle is phase 0
           end if;
         elsif wr_start = '1' then
-          -- mul, div and udivi leave their result in opa; everything else in acc
           wr_pend <= '1';
-          if op_q = OP_MUL or op_q = OP_DIV or op_q = OP_DIVU then
-            wr_sh <= opa;
-          else
-            wr_sh <= acc;
-          end if;
-          for r in 1 to 31 loop
-            if f_t = r then
-              wr_sel(r) <= '1';
-            else
-              wr_sel(r) <= '0';
-            end if;
-          end loop;
+          wr_t    <= f_t;
         end if;
       end if;
     end if;
@@ -1398,7 +1395,7 @@ begin
     begin
       if rising_edge(clk) then
         din := rf(r)(0);
-        if wr_run = '1' and (wr_all = '1' or wr_sel(r) = '1') then
+        if wr_run = '1' and (wr_all = '1' or wr_t = r) then
           din := wr_sh(0);
         end if;
         rf(r) <= din & rf(r)(31 downto 1);
@@ -1409,86 +1406,101 @@ begin
   pc_inc <= pc + 4;
 
   ---------------------------------------------------------------------------
-  -- shared adder
+  -- serial adder
   ---------------------------------------------------------------------------
-  process (state, op_q, opa, opb, acc, pc, cnt)
+  -- bit k of the immediate (sign or zero extended) and of lui's imm << 16
+  ir_k    <= ir(to_integer(k(3 downto 0)));
+  imm_bit <= ir_k when k(4) = '0' else
+             '0'  when f_opc(4 downto 3) = "11" else   -- 0x18..0x1E zero-extend
+             ir(15);
+  lui_bit <= ir_k when k(4) = '1' else '0';
+  y_rd    <= tap_b when f_opc = 0 else imm_bit;        -- the second operand in the read pass
+
+  process (state, op_q, k, step, tap_a, y_rd, pc, opa, opb, wr_sh, accs, opas, rs, dly,
+           sgn_q, sgn_r)
   begin
-    add_x   <= '0' & opa;
-    add_y   <= '0' & opb;
-    add_inv <= '0';
-    add_cin <= '0';
+    s_x   <= '0';
+    s_y   <= '0';
+    s_z   <= '0';
+    s_inv <= '0';
+    s_cin <= '0';
     case state is
-      when S_EXEC =>
+      when S_RD =>
+        s_x <= tap_a;
+        s_y <= y_rd;
+        if op_q = OP_JRAL then
+          s_z <= pc(0);                -- pc + $a + imm
+        end if;
         case op_q is
           when OP_SUB | OP_UNRF | OP_CMP =>
-            add_inv <= '1';
-            add_cin <= '1';
+            s_inv <= '1';
+            s_cin <= '1';
           when OP_OVRF =>
-            add_cin <= '1';
+            s_cin <= '1';              -- like the emulator: carry of a + b + 1
           when others => null;
         end case;
-      when S_JRAL =>
-        add_x <= '0' & pc;
-        add_y <= '0' & opa;
       when S_MUL =>
-        -- signed shift-add; the multiplier's sign bit has negative weight
-        add_x <= acc(31) & acc;
-        if opa(0) = '1' then
-          add_y <= opb(31) & opb;
-          if cnt = 31 then
-            add_inv <= '1';
-            add_cin <= '1';
-          end if;
-        else
-          add_y <= (others => '0');
+        -- partial product (opb, 0 at first) + multiplier bit * $a, 33 bits with sign
+        -- extension; the multiplier's sign bit (last step) has negative weight
+        if step /= 0 then
+          if k(5) = '0' then s_x <= opb(0); else s_x <= accs; end if;
         end if;
-      when S_DIV_NA | S_DIV_FQ =>
-        add_x   <= (others => '0');
-        add_y   <= '0' & opa;
-        add_inv <= '1';
-        add_cin <= '1';
-      when S_DIV_NB =>
-        add_x   <= (others => '0');
-        add_y   <= '0' & opb;
-        add_inv <= '1';
-        add_cin <= '1';
+        if wr_sh(0) = '1' then
+          if k(5) = '0' then s_y <= opa(0); else s_y <= opas; end if;
+          if step = 31 then
+            s_inv <= '1';
+            s_cin <= '1';
+          end if;
+        end if;
+      when S_NEGA =>
+        s_y   <= opa(0);
+        s_inv <= '1';
+        s_cin <= '1';
+      when S_NEGB =>
+        s_y   <= opb(0);
+        s_inv <= '1';
+        s_cin <= '1';
       when S_DIV =>
-        add_x   <= acc & opa(31);
-        add_y   <= '0' & opb;
-        add_inv <= '1';
-        add_cin <= '1';
-      when S_DIV_FR =>
-        add_x   <= (others => '0');
-        add_y   <= '0' & acc;
-        add_inv <= '1';
-        add_cin <= '1';
+        -- non-restoring: R = 2R + dividend bit -/+ divisor, 33 bits
+        if k = 0 then
+          s_x <= opa(31);
+        elsif step /= 0 then
+          s_x <= dly;
+        end if;
+        if k(5) = '0' then
+          s_y <= opb(0);
+        end if;
+        s_inv <= not rs;
+        s_cin <= not rs;
+      when S_DIVC =>
+        s_x <= wr_sh(0);               -- negative remainder: add the divisor back
+        s_y <= opb(0);
+      when S_DIVF =>
+        if op_q = OP_REM then
+          s_y   <= wr_sh(0);
+          s_inv <= sgn_r;
+          s_cin <= sgn_r;
+        else
+          s_y   <= opa(0);
+          s_inv <= sgn_q;
+          s_cin <= sgn_q;
+        end if;
       when others => null;
     end case;
   end process;
 
-  process (clk)
+  process (s_x, s_y, s_z, s_inv, s_cin, cy, k)
+    variable t : natural range 0 to 5;
   begin
-    if rising_edge(clk) then
-      add_xq <= add_x;
-      if add_inv = '1' then
-        add_yq <= not add_y;
-      else
-        add_yq <= add_y;
-      end if;
-      add_cq <= add_cin;
+    if k = 0 then
+      t := b2n(s_cin);
+    else
+      t := to_integer(cy);
     end if;
+    t := t + b2n(s_x) + b2n(s_y xor s_inv) + b2n(s_z);
+    if t mod 2 = 1 then s_sum <= '1'; else s_sum <= '0'; end if;
+    s_cy <= to_unsigned(t / 2, 2);
   end process;
-
-  process (add_xq, add_yq, add_cq)
-    variable c : unsigned(33 downto 0);
-  begin
-    c := (0 => add_cq, others => '0');
-    add_s <= ('0' & add_xq) + ('0' & add_yq) + c;
-  end process;
-
-  with state select bus_st <=
-    '1' when S_EXEC | S_JRAL | S_MUL | S_DIV_NA | S_DIV_NB | S_DIV | S_DIV_FQ | S_DIV_FR,
-    '0' when others;
 
   ---------------------------------------------------------------------------
   -- floating point
@@ -1542,8 +1554,8 @@ begin
     variable r   : std_logic_vector(31 downto 0);
   begin
     r := (others => '0');
-    for k in 0 to 3 loop
-      off := ('0' & acc_addr(3 downto 0)) + k;
+    for i in 0 to 3 loop
+      off := ('0' & acc_addr(3 downto 0)) + i;
       b   := (others => '0');
       if acc_addr(31 downto 4) = MMIO_BASE then
         case to_integer(off) is
@@ -1556,7 +1568,7 @@ begin
           when others => null;
         end case;
       end if;
-      r(8 * k + 7 downto 8 * k) := b;
+      r(8 * i + 7 downto 8 * i) := b;
     end loop;
     case acc_size is
       when "00"   => r(31 downto 8) := (others => '0');
@@ -1609,14 +1621,21 @@ begin
   -- control
   ---------------------------------------------------------------------------
   process (clk)
+    variable rbit   : std_logic;
     variable ge, eq : std_logic;
     variable signd  : std_logic;
   begin
     if rising_edge(clk) then
       fpu_start <= '0';
+      op_q      <= op;
+      cy        <= s_cy;
+      if wr_run = '1' then
+        wr_sh <= '0' & wr_sh(31 downto 1);  -- into the register ring
+      end if;
+      if op_q = OP_DIVU then signd := '0'; else signd := '1'; end if;
+
       if rst = '1' then
         state <= S_FETCH;
-        cnt   <= (others => '0');
         if boot = '1' then
           pc <= x"01000000";
         else
@@ -1624,67 +1643,67 @@ begin
         end if;
         flag  <= '0';
         gpio  <= (others => '0');
-        armed <= '0';
-      elsif bus_st = '1' and armed = '0' then
-        armed <= '1';                    -- adder operands are being latched
+        wr_sh <= (others => '0');          -- what wr_all clears the registers with
+        k     <= (others => '0');
+        step  <= (others => '0');
       else
-        armed <= '0';
-        ge    := add_s(33);  -- no borrow from opa - opb
-        eq    := '1' when opa = opb else '0';
-        signd := '0' when op_q = OP_DIVU else '1';
-
         case state is
           when S_FETCH =>
             if acc_done = '1' then
               ir    <= acc_rdata;
-              cnt   <= (others => '0');
+              state <= S_SYNC;
+            end if;
+
+          when S_SYNC =>
+            -- conditional and the flag is clear: skip. Otherwise wait until the previous
+            -- write is in and the rings are at phase 0, then read.
+            if f_cond = '1' and flag = '0' then
+              state <= S_NEXT;
+            elsif wr_pend = '0' and ph = 31 then
+              k   <= (others => '0');
+              eqf <= '1';
+              nzb <= '0';
+              if op = OP_JAL or op = OP_JRAL then
+                wr_sh <= pc_inc;           -- the link
+              end if;
               state <= S_RD;
             end if;
 
           when S_RD =>
-            -- $a -> opa and $b (or $t for stores) -> opb, one bit per cycle, once the
-            -- previous instruction's write has gone in
-            if wr_pend = '0' then
-              for i in 0 to 31 loop
-                if ph1h(i) = '1' then
-                  opa(i) <= tap_a;
-                  opb(i) <= tap_b;
-                end if;
-              end loop;
-              cnt <= cnt + 1;
-              if cnt = 31 then
-                state <= S_RB;
-              end if;
+            -- one bit of $a (and $b or the immediate) per cycle; one-pass ops finish here
+            k   <= k + 1;
+            opa <= tap_a & opa(31 downto 1);
+            opb <= y_rd & opb(31 downto 1);
+            eqf <= eqf and (tap_a xnor y_rd);
+            nzb <= nzb or y_rd;
+            case op_q is
+              when OP_ADD | OP_SUB  => rbit := s_sum;
+              when OP_OR            => rbit := tap_a or y_rd;
+              when OP_AND           => rbit := tap_a and y_rd;
+              when OP_XOR           => rbit := tap_a xor y_rd;
+              when OP_NOT           => rbit := not tap_a;
+              when OP_LUI           => rbit := lui_bit;
+              when OP_MUL | OP_MHI  => rbit := y_rd;   -- the multiplier
+              when others           => rbit := '0';
+            end case;
+            if op_q = OP_JAL or op_q = OP_JRAL then
+              pc <= s_sum & pc(31 downto 1);
+            else
+              wr_sh <= rbit & wr_sh(31 downto 1);
             end if;
 
-          when S_RB =>
-            if f_opc = 0 then
-              null;                                                  -- opb = $b
-            elsif f_opc(4 downto 3) = "11" then
-              opb <= resize(ir(15 downto 0), 32);                    -- 0x18..0x1E
-            else
-              opb <= unsigned(resize(signed(ir(15 downto 0)), 32));  -- 0x08..0x11
-            end if;
-            state <= S_EXEC;
-
-          when S_EXEC =>
-            state <= S_WB;
-            if f_cond = '1' and flag = '0' then
-              state <= S_NEXT;
-            else
+            if k = 31 then
+              ge := s_cy(0);             -- no borrow from $a - operand
+              eq := eqf and (tap_a xnor y_rd);
               case op_q is
-                when OP_ADD | OP_SUB => acc <= add_s(31 downto 0);
-                when OP_OR   => acc <= opa or opb;
-                when OP_AND  => acc <= opa and opb;
-                when OP_XOR  => acc <= opa xor opb;
-                when OP_NOT  => acc <= not opa;
-                when OP_OVRF => acc <= (0 => add_s(32), others => '0');
-                when OP_UNRF => acc <= (0 => (not ge) or eq, others => '0');
-                when OP_FPU =>
-                  fpu_start <= '1';
-                  state     <= S_FPU;
-                when OP_LUI  => acc <= opb(15 downto 0) & x"0000";
-
+                when OP_ADD | OP_SUB | OP_OR | OP_AND | OP_XOR | OP_NOT | OP_LUI =>
+                  state <= S_WB;
+                when OP_OVRF =>
+                  wr_sh(0) <= s_cy(0);
+                  state    <= S_WB;
+                when OP_UNRF =>
+                  wr_sh(0) <= (not ge) or eq;
+                  state    <= S_WB;
                 when OP_CMP =>
                   case f_fn(2 downto 0) is
                     when "000"  => flag <= eq;
@@ -1695,118 +1714,43 @@ begin
                     when others => flag <= (not ge) or eq;
                   end case;
                   state <= S_NEXT;
-
-                when OP_MUL | OP_MHI =>
-                  acc   <= (others => '0');
-                  cnt   <= (others => '0');
-                  state <= S_MUL;
-
-                when OP_DIV | OP_DIVU | OP_REM =>
-                  if opb = 0 then
-                    state <= S_HALT;  -- the emulator panics
-                  else
-                    state <= S_DIV_NA;
-                  end if;
-
-                when OP_SHL | OP_SHR =>
-                  if opb(31 downto 5) /= 0 then
-                    acc <= (others => '0');
-                  else
-                    acc   <= opa;
-                    cnt   <= opb(4 downto 0);
-                    state <= S_SHIFT;
-                  end if;
-
+                when OP_JAL | OP_JRAL =>
+                  state <= S_WBJ;
                 when OP_LOAD | OP_STORE =>
                   state <= S_MEM;
-
-                when OP_JAL =>
-                  acc   <= pc_inc;
-                  pc    <= add_s(31 downto 0);
-                  state <= S_WBJ;
-
-                when OP_JRAL =>
-                  opa   <= add_s(31 downto 0);  -- imm + $a, then pc + that
-                  state <= S_JRAL;
-
+                when OP_FPU =>
+                  fpu_start <= '1';
+                  state     <= S_FPU;
+                when OP_SHL | OP_SHR =>
+                  state <= S_SH0;
+                when OP_MUL | OP_MHI =>
+                  k     <= (others => '0');
+                  step  <= (others => '0');
+                  state <= S_MUL;
+                when OP_DIV | OP_DIVU | OP_REM =>
+                  state <= S_DIV0;
                 when OP_HLT =>
                   state <= S_HALT;
-
                 when OP_NOP =>
                   state <= S_NEXT;
               end case;
             end if;
 
-          when S_JRAL =>
-            acc   <= pc_inc;
-            pc    <= add_s(31 downto 0);
-            state <= S_WBJ;
+          when S_WB =>
+            pc    <= pc_inc;               -- and the write of wr_sh starts (wr_start)
+            state <= S_FETCH;
 
-          when S_MUL =>
-            acc <= add_s(32 downto 1);
-            opa <= add_s(0) & opa(31 downto 1);
-            cnt <= cnt + 1;
-            if cnt = 31 then
-              state <= S_WB;
-            end if;
+          when S_WBJ =>
+            state <= S_FETCH;              -- pc is the target already
 
-          when S_DIV_NA =>
-            sgn_q <= signd and (opa(31) xor opb(31));
-            sgn_r <= signd and opa(31);
-            if signd = '1' and opa(31) = '1' then
-              opa <= add_s(31 downto 0);
-            end if;
-            state <= S_DIV_NB;
-
-          when S_DIV_NB =>
-            if signd = '1' and opb(31) = '1' then
-              opb <= add_s(31 downto 0);
-            end if;
-            acc   <= (others => '0');
-            cnt   <= (others => '0');
-            state <= S_DIV;
-
-          when S_DIV =>
-            -- restoring division on magnitudes: quotient shifts into opa, remainder in acc
-            if ge = '1' then
-              acc <= add_s(31 downto 0);
-            else
-              acc <= acc(30 downto 0) & opa(31);
-            end if;
-            opa <= opa(30 downto 0) & ge;
-            cnt <= cnt + 1;
-            if cnt = 31 then
-              state <= S_DIV_FQ;
-            end if;
-
-          when S_DIV_FQ =>
-            if sgn_q = '1' then
-              opa <= add_s(31 downto 0);
-            end if;
-            state <= S_DIV_FR;
-
-          when S_DIV_FR =>
-            if sgn_r = '1' then
-              acc <= add_s(31 downto 0);
-            end if;
-            state <= S_WB;
-
-          when S_SHIFT =>
-            if cnt = 0 then
-              state <= S_WB;
-            else
-              if f_fn(0) = '0' then
-                acc <= acc(30 downto 0) & '0';
-              else
-                acc <= '0' & acc(31 downto 1);
-              end if;
-              cnt <= cnt - 1;
-            end if;
+          when S_NEXT =>
+            pc    <= pc_inc;
+            state <= S_FETCH;
 
           when S_MEM =>
             if acc_done = '1' then
               if op_q = OP_LOAD then
-                acc   <= acc_rdata;
+                wr_sh <= acc_rdata;
                 state <= S_WB;
               else
                 if mmio_sel = '1' and opa = x"20000008" then
@@ -1816,16 +1760,155 @@ begin
               end if;
             end if;
 
-          when S_WB | S_NEXT =>
-            pc    <= pc_inc;
-            state <= S_FETCH;
-
-          when S_WBJ =>
-            state <= S_FETCH;
-
           when S_FPU =>
             if fpu_done = '1' then
-              acc   <= unsigned(fpu_res);
+              wr_sh <= unsigned(fpu_res);
+              state <= S_WB;
+            end if;
+
+          -- shifts: shr drops n bits of $a first, shl puts n zeros in first; then 32 bits
+          -- go into wr_sh
+          when S_SH0 =>
+            k <= (others => '0');
+            if opb(31 downto 5) /= 0 then
+              wr_sh <= (others => '0');
+              state <= S_WB;
+            elsif op_q = OP_SHR then
+              state <= S_SH1;
+            else
+              state <= S_SH2;
+            end if;
+
+          when S_SH1 =>
+            if k(4 downto 0) = opb(4 downto 0) then
+              k     <= (others => '0');
+              state <= S_SH2;
+            else
+              opa <= '0' & opa(31 downto 1);
+              k   <= k + 1;
+            end if;
+
+          when S_SH2 =>
+            if op_q = OP_SHL and k(4 downto 0) < opb(4 downto 0) then
+              wr_sh <= '0' & wr_sh(31 downto 1);
+            else
+              wr_sh <= opa(0) & wr_sh(31 downto 1);
+              opa   <= '0' & opa(31 downto 1);
+            end if;
+            k <= k + 1;
+            if k = 31 then
+              state <= S_WB;
+            end if;
+
+          -- mul: 32 steps of 33 cycles. The multiplier is in wr_sh and leaves at the bottom
+          -- while the product's low bits come in at the top; the high half builds up in opb.
+          when S_MUL =>
+            if k = 0 then
+              accs <= opb(31);
+              opas <= opa(31);
+              lowb <= s_sum;
+            end if;
+            if k(5) = '0' then
+              opa <= opa(0) & opa(31 downto 1);   -- rotate
+            end if;
+            opb <= s_sum & opb(31 downto 1);      -- 33 shifts: sum bits 1..32 stay
+            if k = 32 then
+              wr_sh <= lowb & wr_sh(31 downto 1);
+              k     <= (others => '0');
+              step  <= step + 1;
+              if step = 31 then
+                if op_q = OP_MUL then
+                  state <= S_WB;
+                else
+                  state <= S_COPY;               -- mhi: the high half
+                end if;
+              end if;
+            else
+              k <= k + 1;
+            end if;
+
+          when S_COPY =>
+            wr_sh <= opb(0) & wr_sh(31 downto 1);
+            opb   <= opb(0) & opb(31 downto 1);
+            k     <= k + 1;
+            if k = 31 then
+              state <= S_WB;
+            end if;
+
+          -- div: divide the magnitudes, quotient into opa, remainder into wr_sh, then fix
+          -- the signs (the remainder takes the dividend's, like Go)
+          when S_DIV0 =>
+            sgn_q <= signd and (opa(31) xor opb(31));
+            sgn_r <= signd and opa(31);
+            k     <= (others => '0');
+            step  <= (others => '0');
+            rs    <= '0';
+            if nzb = '0' then
+              state <= S_HALT;                    -- division by zero: the emulator panics
+            elsif signd = '1' and opa(31) = '1' then
+              state <= S_NEGA;
+            elsif signd = '1' and opb(31) = '1' then
+              state <= S_NEGB;
+            else
+              state <= S_DIV;
+            end if;
+
+          when S_NEGA =>
+            opa <= s_sum & opa(31 downto 1);
+            k   <= k + 1;
+            if k = 31 then
+              k <= (others => '0');
+              if opb(31) = '1' then
+                state <= S_NEGB;
+              else
+                state <= S_DIV;
+              end if;
+            end if;
+
+          when S_NEGB =>
+            opb <= s_sum & opb(31 downto 1);
+            k   <= k + 1;
+            if k = 31 then
+              k     <= (others => '0');
+              state <= S_DIV;
+            end if;
+
+          when S_DIV =>
+            if k(5) = '0' then
+              dly   <= wr_sh(0);
+              odly  <= opa(0);
+              wr_sh <= s_sum & wr_sh(31 downto 1);  -- new remainder bits
+              opa   <= odly & opa(31 downto 1);     -- dividend / quotient one to the left
+              opb   <= opb(0) & opb(31 downto 1);
+              k     <= k + 1;
+            else                                    -- bit 32: the new remainder's sign
+              rs     <= s_sum;
+              opa(0) <= not s_sum;                  -- quotient bit
+              k      <= (others => '0');
+              step   <= step + 1;
+              if step = 31 then
+                state <= S_DIVC;
+              end if;
+            end if;
+
+          when S_DIVC =>
+            if rs = '0' then
+              state <= S_DIVF;
+            else
+              wr_sh <= s_sum & wr_sh(31 downto 1);
+              opb   <= opb(0) & opb(31 downto 1);
+              k     <= k + 1;
+              if k = 31 then
+                k     <= (others => '0');
+                state <= S_DIVF;
+              end if;
+            end if;
+
+          when S_DIVF =>
+            wr_sh <= s_sum & wr_sh(31 downto 1);    -- quotient or remainder, sign fixed
+            opa   <= '0' & opa(31 downto 1);
+            k     <= k + 1;
+            if k = 31 then
               state <= S_WB;
             end if;
 

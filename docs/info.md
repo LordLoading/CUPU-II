@@ -28,9 +28,11 @@ multiplexers:
 - The register file is bit-serial: each register is a ring of 32 flip-flops rotating one bit per
   clock. Reading `$a` and `$b` takes 32 cycles; writing `$t` takes 32 cycles in the background while
   the next instruction is fetched.
-- The integer core has one shared 33-bit adder, a 32-cycle multiplier/divider and a
-  one-bit-per-cycle shifter.
-- An instruction takes about 170 cycles, most of it the SPI fetch (~120k instructions/s at 20 MHz).
+- The integer core is bit-serial too: all integer arithmetic goes through one 1-bit adder. The
+  operands stream out of the register rings in one 32-cycle pass, and add, sub, the logic ops,
+  compares, `lui` and jump targets are computed on the way. `mul`/`mhi` and `div`/`rem` take one
+  33-cycle pass per bit (about 1,100 cycles), shifts one cycle per bit.
+- An instruction takes about 185 cycles, most of it the SPI fetch (~110k instructions/s at 20 MHz).
 
 The FPU implements all ten float ops (`itof`, `ftoi`, `fadd`, `fsub`, `fmul`, `fdiv`, `sqrt`, `sin`,
 `cos`, `tan`) on IEEE 754 binary32 with round to nearest even, subnormals included. It is
