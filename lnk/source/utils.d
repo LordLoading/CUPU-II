@@ -101,7 +101,7 @@ ObjFile[string] applyRelocations(ObjFile[string] o) {
                     }
                 }
 
-                if (foundLabel) {
+                if (!foundLabel) {
                     foreach (Constant c; oFile.constants) {
                         if (c.name == labelStr[0]) {
                             constant = c;
