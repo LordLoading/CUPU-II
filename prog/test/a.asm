@@ -1,9 +1,10 @@
 .segment main
 
 .equ keyBuf 0x20000004
+.equ countTo 0x200
 
 .text
-addi $2, $0, 0x2000
+addi $2, $0, countTo
 addi $3, $0, loop1
 loop1:
 addi $1, $1, 1
