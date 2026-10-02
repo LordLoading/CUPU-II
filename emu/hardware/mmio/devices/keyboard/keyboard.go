@@ -3,11 +3,28 @@ package keyboard
 const BaseAddr uint32 = 0x20000004
 const Size uint32 = 1
 
-var Buffer = make(chan byte, 32)
+var Buffer = make([]byte, 32)
+var end byte = 0
 
-func KeyboardReadByte(addr uint32) byte {
+func WriteByte(b byte) {
+	Buffer[end%32] = b
+	end++
+}
+
+func ReadByte(addr uint32) byte {
 	if addr == BaseAddr {
-		return <-Buffer
+		end--
+		b := Buffer[end%32]
+		Buffer[end%32] = 0
+		return b
 	}
 	return 0
+}
+
+func GetString() string {
+	var str = ""
+	for i, _ := range Buffer {
+		str += string(Buffer[((byte)(i)+end)%32])
+	}
+	return str
 }

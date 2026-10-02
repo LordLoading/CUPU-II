@@ -5,7 +5,7 @@ import "time"
 const BaseAddr uint32 = 0x20000000
 const Size uint32 = 4
 
-func TimestampReadByte(addr uint32) byte {
+func ReadByte(addr uint32) byte {
 	if addr == BaseAddr {
 		return byte(time.Now().Unix())
 	} else if addr == BaseAddr+1 {

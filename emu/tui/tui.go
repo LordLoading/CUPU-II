@@ -2,6 +2,7 @@ package tui
 
 import (
 	"emulator/hardware/cpu"
+	"emulator/hardware/mmio/devices/keyboard"
 	"time"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -58,8 +59,11 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.String() {
-		case "q", "ctrl+c":
+		case "ctrl+c":
 			return m, tea.Quit
+		default:
+			keyboard.WriteByte(byte(keyMsg.Runes[0]))
+			return m, nil
 		}
 	}
 
@@ -83,10 +87,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	return lipgloss.JoinVertical(lipgloss.Top,
-		getInfo(),
-		lipgloss.JoinHorizontal(lipgloss.Top,
-			box.Render(lipgloss.JoinHorizontal(lipgloss.Top,
-				regs1.View(), regs2.View())),
-			box.Render(buildRamTable())))
+	return lipgloss.JoinHorizontal(lipgloss.Top,
+		lipgloss.JoinVertical(lipgloss.Top,
+			getInfo(),
+			lipgloss.JoinHorizontal(lipgloss.Top,
+				box.Render(lipgloss.JoinHorizontal(lipgloss.Top,
+					regs1.View(), regs2.View())),
+				box.Render(buildRamTable()))),
+		keyboard.GetString())
 }

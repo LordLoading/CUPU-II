@@ -7,10 +7,10 @@ import (
 
 func MMIOReadByte(addr uint32) byte {
 	if addr >= timestamp.BaseAddr && addr < timestamp.BaseAddr+timestamp.Size {
-		return timestamp.TimestampReadByte(addr)
+		return timestamp.ReadByte(addr)
 	}
 	if addr >= keyboard.BaseAddr && addr < keyboard.BaseAddr+keyboard.Size {
-		return keyboard.KeyboardReadByte(addr)
+		return keyboard.ReadByte(addr)
 	}
 	return 0
 }
