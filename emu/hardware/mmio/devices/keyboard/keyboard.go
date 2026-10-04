@@ -1,5 +1,7 @@
 package keyboard
 
+import "strings"
+
 const BaseAddr uint32 = 0x20000004
 const Size uint32 = 1
 
@@ -26,5 +28,7 @@ func View() string {
 	for i, _ := range Buffer {
 		str += string(Buffer[((byte)(i)+end)%32])
 	}
+	str = strings.ReplaceAll(str, "\n", "↵")
+	str = strings.ReplaceAll(str, "\b", "←")
 	return str
 }
