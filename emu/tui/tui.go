@@ -3,6 +3,7 @@ package tui
 import (
 	"emulator/hardware/cpu"
 	"emulator/hardware/mmio/devices/keyboard"
+	"emulator/hardware/mmio/devices/term"
 	"time"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -10,7 +11,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// var targetCyclesPerSecond uint32 = 0
 var cyclesSinceMeasurement uint32 = 0
 var lastMeasurementTime time.Time = time.Now()
 var clockSpeed uint32 = 0
@@ -61,6 +61,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch keyMsg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
+		case "enter":
+			keyboard.WriteByte(byte('\n'))
+			return m, nil
+		case "backspace":
+			keyboard.WriteByte(byte('\b'))
+			return m, nil
 		default:
 			keyboard.WriteByte(byte(keyMsg.Runes[0]))
 			return m, nil
@@ -94,5 +100,7 @@ func (m model) View() string {
 				box.Render(lipgloss.JoinHorizontal(lipgloss.Top,
 					regs1.View(), regs2.View())),
 				box.Render(buildRamTable()))),
-		keyboard.GetString())
+		lipgloss.JoinVertical(lipgloss.Top,
+			"keyboard buffer:"+keyboard.View(),
+			box.Render("Term\n" + term.View())))
 }

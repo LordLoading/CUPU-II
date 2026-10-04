@@ -13,6 +13,7 @@ func ReadByte(addr uint32) byte {
 
 func WriteByte(addr uint32, value byte) {
 	if addr >= (uint32(len(Ram))) {
+		mmio.MMIOWriteByte(addr, value)
 		return
 	}
 	Ram[addr] = value

@@ -21,7 +21,7 @@ func ReadByte(addr uint32) byte {
 	return 0
 }
 
-func GetString() string {
+func View() string {
 	var str = ""
 	for i, _ := range Buffer {
 		str += string(Buffer[((byte)(i)+end)%32])
