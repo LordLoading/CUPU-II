@@ -2,6 +2,7 @@ package tui
 
 import (
 	"emulator/hardware/cpu"
+	"emulator/hardware/mmio/devices/display"
 	"emulator/hardware/mmio/devices/keyboard"
 	"emulator/hardware/mmio/devices/term"
 	"time"
@@ -93,6 +94,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
+	display.View()
 	return lipgloss.JoinHorizontal(lipgloss.Top,
 		lipgloss.JoinVertical(lipgloss.Top,
 			getInfo(),
