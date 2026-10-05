@@ -26,6 +26,15 @@ For more details, see [`isa.txt`](isa.txt)
 To fully use this Project, you will need to build the assembler, linker, and emulator.
 To do that you will need zig, d, and golang. (sorry, i just wanted to try stuff out)
 
+use the build script
+```bash
+# on linux
+sh build.sh
+# on windows
+build.ps1
+```
+
+or do it manually
 ```bash
 # build assembler
 cd asm && zig build
@@ -35,10 +44,45 @@ cd lnk && dub build
 
 # build emulator
 cd emu && go build ./
+
+# or use the build script in ./
 ```
 
 ## Usage
-with `assemble.sh` on unix-like systems or `assemble.ps1` on windows and a path to a dir you provide you can assemble and link all .asm files and in that path.
-example: `sh assemble.sh prog/test`
+use the run script
+```bash
+# on linux
+sh run.sh
+# on windows
+run.ps1
+```
 
-you can then run it by going to `./emu` and running `go run . -bin out/out.bin`
+or assemble and link without running the emulator
+```bash
+# on linux
+sh assemble.sh prog/test
+# on windows
+assemble.ps1 prog/test
+```
+
+or do it manually
+```bash
+# assemble every file
+# on linux
+./asm/zig-out/bin/assembler prog/test/a.asm
+# on windows
+.\asm\zig-out\bin\assembler.exe prog/test/a.asm
+
+# link all files
+# on linux
+./lnk/linker ./out/
+# on windows
+.\lnk\linker.exe ./out/
+
+# run the emulator
+# on linux
+./emu/emulator -bin ./out/out.bin
+# on windows
+.\emu\emulator.exe -bin .\out\out.bin
+```
+
