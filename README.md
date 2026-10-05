@@ -15,10 +15,27 @@ This project is subdivided into smaller sub-projects:
 32 general-purpose registers (`$0`-`$31`; `$0` is always zero). 
 
 Two instruction formats:
-- **R-type**: `opcode`, `target`, `a`, `b`, `func11`
-- **I-type**: `opcode`, `target`, `a`, `immediate`
+- **R-type**: `cond: 1 bit`, `opcode: 5 bit`, `target: 5 bit`, `a: 5 bit`, `b: 5 bit`, `func11: 11 bit`
+- **I-type**: `cond: 1 bit`, `opcode: 5 bit`, `target: 5 bit`, `a: 5 bit`, `immediate: 16 bit`
 
+- Addressspace: 32 bits (not all are mapped to ram but you could do that without any issues)
+- Addressresolution: 8 bits (how many bits are stored in one address)
+
+### Some Quirks
+#### Conditionals
 Conditional bit: when set, the instruction only executes if the condition flag is set.
+To set the condition flag you can compare 2 registers. If the comparison is true, the condition flag is set and vice versa.
+#### Load Immediate
+To load a big number like `0x12345678` into a register, you need to use `lui` followed by `uaddi`.
+This is because we can only load 16 bit immediates at a time. using `addi` would sign extend the number, so you would have to be very careful with the upper half.
+#### Jumps
+Jumps can be absolute with `jal` or relative with `jral`.
+The "al" part means "and link", aka the it stores the address of the next instruction in the register of your choice.
+To discard the linked address, just write it to `$0` as this is "hardwired" to zero.
+#### Memory Operations
+Memory operations are done with `lw`, `lh`, `lb`, `sw`, `sh`, `sb`.
+The `lw` and `sw` instructions are for 32 bit words, the `lh` and `sh` are for 16 bit halfwords, and the `lb` and `sb` are for 8 bit bytes.
+You have to provide the address you want to read/write to in a register, so be sure to load it first and calculate offsets, as you cant use immediates with these instructions.
 
 For more details, see [`isa.txt`](isa.txt)
 
@@ -26,7 +43,7 @@ For more details, see [`isa.txt`](isa.txt)
 To fully use this Project, you will need to build the assembler, linker, and emulator.
 To do that you will need zig, d, and golang. (sorry, i just wanted to try stuff out)
 
-use the build script
+Use the build script
 ```bash
 # on linux
 sh build.sh
@@ -34,7 +51,7 @@ sh build.sh
 build.ps1
 ```
 
-or do it manually
+Or do it manually
 ```bash
 # build assembler
 cd asm && zig build
@@ -44,12 +61,10 @@ cd lnk && dub build
 
 # build emulator
 cd emu && go build ./
-
-# or use the build script in ./
 ```
 
 ## Usage
-use the run script
+Use the run script
 ```bash
 # on linux
 sh run.sh
@@ -57,7 +72,7 @@ sh run.sh
 run.ps1
 ```
 
-or assemble and link without running the emulator
+Or assemble and link without running the emulator
 ```bash
 # on linux
 sh assemble.sh prog/test
@@ -65,7 +80,7 @@ sh assemble.sh prog/test
 assemble.ps1 prog/test
 ```
 
-or do it manually
+Or do it manually
 ```bash
 # assemble every file
 # on linux
@@ -86,3 +101,7 @@ or do it manually
 .\emu\emulator.exe -bin .\out\out.bin
 ```
 
+---
+
+idk what else to tell you.
+go make something great :)
