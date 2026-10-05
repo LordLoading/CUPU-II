@@ -37,14 +37,16 @@ pub const ObjStruct = struct {
     pub fn addInst(inst: u32) void {
         const bytes: []const u8 = std.mem.asBytes(&inst);
         for (bytes) |byte| {
-            const str = std.fmt.hex(byte);
+            var str: [2]u8 = undefined; 
+            _ = std.fmt.bufPrint(&str, "{X:0>2}", .{byte}) catch unreachable;
             main.text.appendSlice(main.alloc, &str) catch unreachable;
         }
     }
 
     pub fn addData(bytes: []const u8) void {
         for (bytes) |byte| {
-            const str = std.fmt.hex(byte);
+            var str: [2]u8 = undefined; 
+            _ = std.fmt.bufPrint(&str, "{X:0>2}", .{byte}) catch unreachable;
             main.data.appendSlice(main.alloc, &str) catch unreachable;
         }
     }
