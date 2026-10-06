@@ -14,15 +14,17 @@ neq $1, $2
 addi $3, $0, loop2
 lui $2, keyBuf
 uaddi $2, $2, keyBuf
-lui $5, display
-uaddi $5, $5, display
+lui $31, display
+uaddi $31, $31, display
 add $1, $0, $0
 loop2:
 lb $4, $2
 neq $4, $0
 !add $1, $4, $0
 !sb $2, $4
-!sb $5, $4
-!addi $5, $5, 1
+!sb $31, $4
+!addi $31, $31, 1
 jal $0, $3
+
+
 
