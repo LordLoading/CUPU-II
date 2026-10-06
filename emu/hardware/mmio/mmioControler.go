@@ -1,6 +1,7 @@
 package mmio
 
 import (
+	"emulator/hardware/mmio/devices/display"
 	"emulator/hardware/mmio/devices/keyboard"
 	"emulator/hardware/mmio/devices/term"
 	"emulator/hardware/mmio/devices/timestamp"
@@ -19,6 +20,9 @@ func MMIOReadByte(addr uint32) byte {
 func MMIOWriteByte(addr uint32, value byte) {
 	if addr >= term.BaseAddr && addr < term.BaseAddr+term.Size {
 		term.WriteByte(addr, value)
+	}
+	if addr >= display.BaseAddr && addr < display.BaseAddr+display.Size {
+		display.WriteByte(addr, value)
 	}
 }
 

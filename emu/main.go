@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"emulator/hardware"
+	"emulator/hardware/mmio/devices/display"
 	"emulator/tui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,6 +18,7 @@ var clock = flag.Int("clk", 1e6, "clock speed in Hz")
 func main() {
 	flag.Parse()
 	data, err := os.ReadFile(*binPath)
+	display.Init()
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(1)
