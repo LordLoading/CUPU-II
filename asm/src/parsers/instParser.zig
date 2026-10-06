@@ -19,11 +19,14 @@ pub fn parse(instLine: []const u8) InstReloc {
     var label: ?[]const u8 = null;
 
     var iLine = std.mem.trim(u8, instLine, " \t");
-
-    var inst = iLine[0 .. std.mem.findAny(u8, iLine, " \t") orelse {
+    const instEnd = std.mem.findAny(u8, iLine, " \t") orelse blk: {
+        if (std.mem.startsWith(u8, iLine, "hlt") or std.mem.startsWith(u8, iLine, "!hlt")) {
+            break :blk iLine.len;
+        }
         std.log.err("no space found in line: {s}", .{iLine});
-        unreachable;
-    }];
+        std.process.exit(1);
+    };
+    var inst = iLine[0..instEnd];
     if (inst[0] == '!') {
         isCond = true;
         inst = inst[1..];
@@ -35,10 +38,7 @@ pub fn parse(instLine: []const u8) InstReloc {
     opcode = op.opc;
     func11 = op.func11;
 
-    iLine = iLine[std.mem.findAny(u8, iLine, " \t") orelse {
-        std.log.err("no space found in line: {s}", .{iLine});
-        std.process.exit(1);
-    } ..];
+    iLine = std.mem.trim(u8, iLine[instEnd..], " \t");
 
     iLine = std.mem.trim(u8, iLine, " \t");
 
@@ -46,6 +46,7 @@ pub fn parse(instLine: []const u8) InstReloc {
 
     var i: usize = 0;
     while (args.next()) |arg| {
+        if (op.fmt.len == 0) break;
         if (op.fmt[i] == 't') {
             t = parseReg(arg);
         } else if (op.fmt[i] == 'a') {

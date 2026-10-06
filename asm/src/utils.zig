@@ -164,9 +164,9 @@ pub const FWR = struct {
     rest: ?[]const u8,
 
     pub fn init(inStr: []const u8) ?FWR {
-        var str = std.mem.trim(u8, inStr, " \t");
+        const str = std.mem.trim(u8, inStr, " \t");
         const firstWord = getFirstWord(str) orelse return null;
-        if (firstWord.len == inStr.len) return FWR{ .firstWord = firstWord, .rest = null };
+        if (firstWord.len == str.len) return FWR{ .firstWord = firstWord, .rest = null };
         const rest = std.mem.trim(u8, str[firstWord.len..], " \t");
         return FWR{
             .firstWord = firstWord,

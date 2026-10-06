@@ -16,6 +16,7 @@ var cyclesSinceMeasurement uint32 = 0
 var lastMeasurementTime time.Time = time.Now()
 var clockSpeed uint32 = 0
 var prevPC uint32 = 0
+var halted bool = false
 
 type model struct {
 	regTable table.Model
@@ -40,7 +41,9 @@ func runCPU(targetFreq uint32) {
 			select {
 			case <-ticker.C:
 				prevPC = cpu.ProgramCounter
-				cpu.Tick()
+				if !halted {
+					halted = !cpu.Tick()
+				}
 				cyclesSinceMeasurement += 1
 			}
 		}
