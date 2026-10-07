@@ -7,6 +7,7 @@ const parseDirective = @import("parsers/directiveParsers.zig").parse;
 pub var o = obj.ObjStruct{};
 pub var alloc: std.mem.Allocator = undefined;
 pub var section: ?obj.ObjStruct.section = null;
+pub var initt: std.process.Init = undefined; 
 
 pub var text: std.ArrayList(u8) = .empty;
 pub var data: std.ArrayList(u8) = .empty;
@@ -19,6 +20,7 @@ var fileName: []const u8 = "";
 
 pub fn main(init: std.process.Init) !void {
     alloc = init.arena.allocator();
+    initt = init;
 
     const args = try init.minimal.args.toSlice(init.arena.allocator());
 
@@ -29,7 +31,7 @@ pub fn main(init: std.process.Init) !void {
 
     fileName = args[1];
 
-    const contents = try std.Io.Dir.cwd().readFileAlloc(init.io, fileName, init.gpa, .limited(1234));
+    const contents = try std.Io.Dir.cwd().readFileAlloc(init.io, fileName, init.gpa, .limited(0x100000));
     defer init.gpa.free(contents);
 
     var lines = std.mem.splitAny(u8, contents, "\n");

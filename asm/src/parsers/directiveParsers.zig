@@ -92,6 +92,16 @@ fn parseData(directive: utils.Directive, valStr: []const u8) void {
 
         ObjStruct.addData(trimmed);
         ObjStruct.addData("\x00");
+    } else if (std.mem.eql(u8, directive.name, ".file")) {
+        const trimmed = std.mem.trim(u8, valStr, " \t");
+
+        const contents = std.Io.Dir.cwd().readFileAlloc(main.initt.io, trimmed, main.initt.gpa, .limited(0x100000)) catch |err| {
+            std.log.err("readFileAlloc error: {any}", .{err});
+            std.process.exit(1);
+        };
+        defer main.initt.gpa.free(contents);
+
+        ObjStruct.addData(contents);
     }
 }
 
