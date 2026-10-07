@@ -103,5 +103,7 @@ Or do it manually
 
 ---
 
+documentation on how to use the mmio devices will be added soon.
+
 idk what else to tell you.
 go make something great :)
