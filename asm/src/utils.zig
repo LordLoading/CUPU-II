@@ -202,6 +202,7 @@ const directiveTable: []const Directive = &[_]Directive{
     Directive.init(".float", DType.data),
     Directive.init(".asciz", DType.data),
     Directive.init(".ascii", DType.data),
+    Directive.init(".file", DType.data),
 };
 
 pub fn getDirectiveByName(name: []const u8) ?Directive {

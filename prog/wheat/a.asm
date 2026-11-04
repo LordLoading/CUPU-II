@@ -77,3 +77,4 @@ jal $0, $30, 0
 
 .data
 img:
+.file ./wheat.raw
