@@ -109,6 +109,12 @@ const opTable: []const Op = &[_]Op{
     Op.init("gte", 'R', "ab", 0x00, 0x023),
     Op.init("lt", 'R', "ab", 0x00, 0x024),
     Op.init("lte", 'R', "ab", 0x00, 0x025),
+    Op.init("feq", 'R', "ab", 0x00, 0x02A),
+    Op.init("fneq", 'R', "ab", 0x00, 0x02B),
+    Op.init("fgt", 'R', "ab", 0x00, 0x02C),
+    Op.init("fgte", 'R', "ab", 0x00, 0x02D),
+    Op.init("flt", 'R', "ab", 0x00, 0x02E),
+    Op.init("flte", 'R', "ab", 0x00, 0x02F),
     //memory access
     Op.init("lw", 'R', "ta", 0x00, 0x030),
     Op.init("lh", 'R', "ta", 0x00, 0x031),

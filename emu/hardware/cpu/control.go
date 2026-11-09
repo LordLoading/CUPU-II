@@ -39,7 +39,7 @@ func Tick() bool {
 			if Func11 <= 0x17 {
 				WriteReg(Target, AutoOp(byte(Func11), ReadReg(A), ReadReg(B)))
 			} else {
-				if Func11 >= 0x20 && Func11 <= 0x25 {
+				if Func11 >= 0x20 && Func11 <= 0x2F {
 					UsesT = false
 				} else if Func11 >= 0x30 && Func11 <= 0x35 {
 					UsesB = false
@@ -58,6 +58,18 @@ func Tick() bool {
 					Cond = ReadReg(A) < ReadReg(B)
 				case 0x25:
 					Cond = ReadReg(A) <= ReadReg(B)
+				case 0x2A:
+					Cond = iasf(ReadReg(A)) == iasf(ReadReg(B))
+				case 0x2B:
+					Cond = iasf(ReadReg(A)) != iasf(ReadReg(B))
+				case 0x2C:
+					Cond = iasf(ReadReg(A)) > iasf(ReadReg(B))
+				case 0x2D:
+					Cond = iasf(ReadReg(A)) >= iasf(ReadReg(B))
+				case 0x2E:
+					Cond = iasf(ReadReg(A)) < iasf(ReadReg(B))
+				case 0x2F:
+					Cond = iasf(ReadReg(A)) <= iasf(ReadReg(B))
 				case 0x30:
 					WriteReg(Target, hardware.ReadWord(ReadReg(A)))
 				case 0x31:
