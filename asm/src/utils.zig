@@ -119,9 +119,9 @@ const opTable: []const Op = &[_]Op{
     Op.init("lw", 'R', "ta", 0x00, 0x030),
     Op.init("lh", 'R', "ta", 0x00, 0x031),
     Op.init("lb", 'R', "ta", 0x00, 0x032),
-    Op.init("sw", 'R', "at", 0x00, 0x033),
-    Op.init("sh", 'R', "at", 0x00, 0x034),
-    Op.init("sb", 'R', "at", 0x00, 0x035),
+    Op.init("sw", 'R', "at", 0x00, 0x034),
+    Op.init("sh", 'R', "at", 0x00, 0x035),
+    Op.init("sb", 'R', "at", 0x00, 0x036),
     //idk
     Op.init("hlt", 'R', "", 0x00, 0x040),
     //immediate alu

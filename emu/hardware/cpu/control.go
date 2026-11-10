@@ -41,7 +41,7 @@ func Tick() bool {
 			} else {
 				if Func11 >= 0x20 && Func11 <= 0x2F {
 					UsesT = false
-				} else if Func11 >= 0x30 && Func11 <= 0x35 {
+				} else if Func11 >= 0x30 && Func11 <= 0x36 {
 					UsesB = false
 				}
 
@@ -76,11 +76,11 @@ func Tick() bool {
 					WriteReg(Target, uint32(hardware.ReadHalfWord(ReadReg(A))))
 				case 0x32:
 					WriteReg(Target, uint32(hardware.ReadByte(ReadReg(A))))
-				case 0x33:
-					hardware.WriteWord(ReadReg(A), ReadReg(Target))
 				case 0x34:
-					hardware.WriteHalfWord(ReadReg(A), uint16(ReadReg(Target)))
+					hardware.WriteWord(ReadReg(A), ReadReg(Target))
 				case 0x35:
+					hardware.WriteHalfWord(ReadReg(A), uint16(ReadReg(Target)))
+				case 0x36:
 					hardware.WriteByte(ReadReg(A), byte(ReadReg(Target)))
 				case 0x40:
 					UsesA = false
