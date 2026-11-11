@@ -119,9 +119,9 @@ const opTable: []const Op = &[_]Op{
     Op.init("lw", 'R', "ta", 0x00, 0x030),
     Op.init("lh", 'R', "ta", 0x00, 0x031),
     Op.init("lb", 'R', "ta", 0x00, 0x032),
-    Op.init("sw", 'R', "at", 0x00, 0x034),
-    Op.init("sh", 'R', "at", 0x00, 0x035),
-    Op.init("sb", 'R', "at", 0x00, 0x036),
+    Op.init("sw", 'R', "ab", 0x00, 0x034),
+    Op.init("sh", 'R', "ab", 0x00, 0x035),
+    Op.init("sb", 'R', "ab", 0x00, 0x036),
     //idk
     Op.init("hlt", 'R', "", 0x00, 0x040),
     //immediate alu
@@ -144,6 +144,85 @@ const opTable: []const Op = &[_]Op{
     Op.init("uori", 'I', "tai", 0x1C, 0x000),
     Op.init("uandi", 'I', "tai", 0x1D, 0x000),
     Op.init("uxori", 'I', "tai", 0x1E, 0x000),
+};
+
+pub const PseuOp = struct {
+    name: []const u8,
+    realOps: []const u8,
+    paramRep: [][]const u8,
+
+    pub fn init(name: []const u8, realOps: []const u8, paramRep: [][]const u8) PseuOp {
+        return PseuOp{
+            .name = name,
+            .realOps = realOps,
+            .paramRep = paramRep,
+        };
+    }
+};
+
+const pseuOpTable: []const PseuOp = &[_]PseuOp{
+    PseuOp.init("li",
+        \\lui %target %imm
+        \\uori %target %target %imm
+    , &.{ "target", "imm" }),
+    //push
+    PseuOp.init("pshb",
+        \\sb %sp %data
+        \\subi %sp %sp 1
+    , &.{ "sp", "data" }),
+    PseuOp.init("pshh",
+        \\sh %sp %data
+        \\subi %sp %sp 2
+    , &.{ "sp", "data" }),
+    PseuOp.init("pshw",
+        \\sh %sp %data
+        \\subi %sp %sp 4
+    , &.{ "sp", "data" }),
+    //pop
+    PseuOp.init("popb",
+        \\lb %target %sp
+        \\addi %sp %sp 1
+    , &.{ "target", "sp" }),
+    PseuOp.init("poph",
+        \\lh %target %sp
+        \\addi %sp %sp 2
+    , &.{ "target", "sp" }),
+    PseuOp.init("popw",
+        \\lw %target %sp
+        \\addi %sp %sp 4
+    , &.{ "target", "sp" }),
+    //direct load
+    PseuOp.init("dlb",
+        \\lui %target %imm
+        \\uori %target %target %imm
+        \\lb %target %target
+    , &.{ "target", "imm" }),
+    PseuOp.init("dlh",
+        \\lui %target %imm
+        \\uori %target %target %imm
+        \\lh %target %target
+    , &.{ "target", "imm" }),
+    PseuOp.init("dlw",
+        \\lui %target %imm
+        \\uori %target %target %imm
+        \\lw %target %target
+    , &.{ "target", "imm" }),
+    //direct store
+    PseuOp.init("dlb",
+        \\lui %address %imm
+        \\uori %address %address %imm
+        \\sb %address %data
+    , &.{ "address", "imm", "data" }),
+    PseuOp.init("dlh",
+        \\lui %address %imm
+        \\uori %address %address %imm
+        \\sh %address %data
+    , &.{ "address", "imm", "data" }),
+    PseuOp.init("dlw",
+        \\lui %address %imm
+        \\uori %address %address %imm
+        \\sw %address %data
+    , &.{ "address", "imm", "data" }),
 };
 
 pub fn getOpByName(name: []const u8) ?Op {
