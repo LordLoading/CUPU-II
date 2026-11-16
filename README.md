@@ -14,6 +14,17 @@ This project is subdivided into smaller sub-projects:
 ## ISA
 32 general-purpose registers (`$0`-`$31`; `$0` is always zero). 
 
+### Special Registers
+The assembler gives these registers conventional roles for its pseudo ops:
+
+| Register | Alias     | Purpose                                                        |
+|----------|-----------|----------------------------------------------------------------|
+| `$31`    | `sp`      | stack pointer                                                  |
+| `$30`    | `fp`      | frame pointer                                                  |
+| `$29`    | `address` | scratch address register, clobbered by absolute load/store ops |
+
+These roles are **not hardware-defined**. The CPU does not reserve or special-case these registers; they are an assembler pseudo-op convention only. Regular instructions can use them like any other register.
+
 Two instruction formats:
 - **R-type**: `cond: 1 bit`, `opcode: 5 bit`, `target: 5 bit`, `a: 5 bit`, `b: 5 bit`, `func11: 11 bit`
 - **I-type**: `cond: 1 bit`, `opcode: 5 bit`, `target: 5 bit`, `a: 5 bit`, `immediate: 16 bit`

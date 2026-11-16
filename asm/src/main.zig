@@ -3,6 +3,7 @@ const parseInst = @import("parsers/instParser.zig").parse;
 const utils = @import("utils.zig");
 const obj = @import("obj.zig");
 const parseDirective = @import("parsers/directiveParsers.zig").parse;
+const preprocess = @import("pseuOpPreprocess.zig").expandPseuOps;
 
 pub var o = obj.ObjStruct{};
 pub var alloc: std.mem.Allocator = undefined;
@@ -34,7 +35,9 @@ pub fn main(init: std.process.Init) !void {
     const contents = try std.Io.Dir.cwd().readFileAlloc(init.io, fileName, init.gpa, .limited(0x100000));
     defer init.gpa.free(contents);
 
-    var lines = std.mem.splitAny(u8, contents, "\n");
+    const preprocessed = preprocess(contents);
+
+    var lines = std.mem.splitAny(u8, preprocessed, "\n");
     while (lines.next()) |line| {
         var trimmed = utils.trimComment(line);
         trimmed = std.mem.trim(u8, trimmed, " \t\n\r");
