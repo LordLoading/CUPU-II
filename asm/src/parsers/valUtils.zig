@@ -74,9 +74,9 @@ pub fn unescape(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
     return out.toOwnedSlice(allocator);
 }
 
-fn parseIntAutoBase(T: type, valStr: []const u8) ?std.meta.Int(.unsigned, @typeInfo(T).int.bits) {
-    const iT: type = std.meta.Int(.signed, @typeInfo(T).int.bits);
-    const uT: type = std.meta.Int(.unsigned, @typeInfo(T).int.bits);
+fn parseIntAutoBase(T: type, valStr: []const u8) ?@Int(.unsigned, @typeInfo(T).int.bits) {
+    const iT: type = @Int(.signed, @typeInfo(T).int.bits);
+    const uT: type = @Int(.unsigned, @typeInfo(T).int.bits);
 
     var base: []const u8 = &[_]u8{0};
     if (valStr.len > 2) base = valStr[0..2];

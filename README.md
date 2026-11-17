@@ -22,6 +22,7 @@ The assembler gives these registers conventional roles for its pseudo ops:
 | `$31`    | `sp`      | stack pointer                                                  |
 | `$30`    | `fp`      | frame pointer                                                  |
 | `$29`    | `address` | scratch address register, clobbered by absolute load/store ops |
+| `$28`    | `ra`      | link/return address register used by `ret`                     |
 
 These roles are **not hardware-defined**. The CPU does not reserve or special-case these registers; they are an assembler pseudo-op convention only. Regular instructions can use them like any other register.
 

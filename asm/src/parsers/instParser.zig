@@ -42,7 +42,7 @@ pub fn parse(instLine: []const u8) InstReloc {
 
     iLine = std.mem.trim(u8, iLine, " \t");
 
-    var args = std.mem.splitAny(u8, iLine, ",");
+    var args = std.mem.tokenizeAny(u8, iLine, " \t,");
 
     var i: usize = 0;
     while (args.next()) |arg| {
